@@ -118,16 +118,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get installation token
       const instToken = await createInstallationToken(jwt, installationId)
 
-      // Validate by fetching org or user info with the installation token
-      const octokit = getOctokit(instToken.token)
+      // Try to fetch display name (org or user), but don't fail if it errors
+      getOctokit(instToken.token)
       let displayName = orgName
       try {
+        const octokit = getOctokit(instToken.token)
         const { data } = await octokit.orgs.get({ org: orgName })
         displayName = data.name ?? orgName
       } catch {
-        // Not an org — try as user
-        const { data } = await octokit.users.getByUsername({ username: orgName })
-        displayName = data.name ?? orgName
+        // Not an org or insufficient permissions — use login as display name
       }
 
       // Persist credentials
