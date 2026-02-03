@@ -96,8 +96,7 @@ export async function findOrgInstallation(
 
   const match = installations.find(
     (inst) =>
-      inst.account?.login.toLowerCase() === orgName.toLowerCase() &&
-      inst.target_type === 'Organization',
+      inst.account?.login.toLowerCase() === orgName.toLowerCase(),
   )
 
   if (!match) {
@@ -106,7 +105,7 @@ export async function findOrgInstallation(
       .filter(Boolean)
       .join(', ')
     throw new Error(
-      `GitHub App is not installed on organization "${orgName}". ` +
+      `GitHub App is not installed on "${orgName}". ` +
         (found ? `Found installations for: ${found}.` : 'No installations found.'),
     )
   }
