@@ -40,6 +40,7 @@ jobs:
           VITE_GITHUB_APP_ID: ${{ secrets.APP_ID }}
           VITE_GITHUB_APP_PEM: ${{ secrets.APP_PEM }}
           VITE_GITHUB_ORG: ${{ secrets.GH_ORG }}
+          VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
