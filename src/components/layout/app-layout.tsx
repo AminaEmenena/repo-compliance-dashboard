@@ -26,6 +26,7 @@ export function AppLayout() {
     complianceProgress,
     error,
     fetchAll,
+    loadFromCache,
     createSoxProperty,
   } = useRepoStore()
   const { sidebarOpen, setSidebarOpen } = useUIStore()
@@ -34,9 +35,11 @@ export function AppLayout() {
 
   useEffect(() => {
     if (orgName) {
+      // Show cached data immediately, then refresh in background
+      loadFromCache(orgName)
       fetchAll(orgName)
     }
-  }, [orgName, fetchAll])
+  }, [orgName, fetchAll, loadFromCache])
 
   const hasSoxProperty = useMemo(
     () => propertySchema.some((p) => p.property_name === SOX_PROPERTY),

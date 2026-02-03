@@ -18,6 +18,40 @@ import {
 import { getErrorMessage } from '@/lib/utils/errors'
 import { useAuthStore } from '@/stores/auth-store'
 
+const CACHE_KEY = 'rcd_repo_cache'
+
+interface CachedData {
+  repositories: RepoWithProperties[]
+  propertySchema: PropertyDefinition[]
+  orgApps: RepoAppInstallation[]
+  lastFetchedAt: string
+  orgName: string
+}
+
+function saveCache(data: CachedData) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data))
+  } catch {
+    // Storage full or unavailable — silently ignore
+  }
+}
+
+function loadCache(orgName: string): CachedData | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as CachedData
+    if (data.orgName !== orgName) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY)
+}
+
 async function getAuthedOctokit() {
   const token = await useAuthStore.getState().getToken()
   return getOctokit(token)
@@ -33,6 +67,7 @@ interface RepoState {
   lastFetchedAt: string | null
 
   fetchAll: (orgName: string) => Promise<void>
+  loadFromCache: (orgName: string) => boolean
   createSoxProperty: (orgName: string) => Promise<void>
   updateProperty: (
     orgName: string,
@@ -51,6 +86,20 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   complianceProgress: null,
   error: null,
   lastFetchedAt: null,
+
+  loadFromCache: (orgName: string) => {
+    const cached = loadCache(orgName)
+    if (!cached) return false
+    set({
+      repositories: cached.repositories,
+      propertySchema: cached.propertySchema,
+      orgApps: cached.orgApps,
+      lastFetchedAt: cached.lastFetchedAt,
+      isLoading: false,
+      error: null,
+    })
+    return true
+  },
 
   fetchAll: async (orgName: string) => {
     set({ isLoading: true, error: null, complianceProgress: null })
@@ -126,6 +175,15 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       )
 
       set({ repositories: withCompliance, complianceProgress: null })
+
+      // Cache for next load
+      saveCache({
+        repositories: withCompliance,
+        propertySchema: get().propertySchema,
+        orgApps: get().orgApps,
+        lastFetchedAt: get().lastFetchedAt ?? new Date().toISOString(),
+        orgName,
+      })
     } catch (error) {
       set({
         isLoading: false,
@@ -201,6 +259,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   reset: () => {
+    clearCache()
     set({
       repositories: [],
       propertySchema: [],
