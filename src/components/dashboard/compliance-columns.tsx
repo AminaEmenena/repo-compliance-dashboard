@@ -2,13 +2,24 @@ import { createColumnHelper } from '@tanstack/react-table'
 import type { RepoWithProperties } from '@/types/repo'
 import type { PropertyDefinition } from '@/types/property'
 import { SoxToggle } from './sox-toggle'
-import { PropertyBadge } from './property-badge'
-import { ExternalLink, Lock, Globe, Building2, Archive } from 'lucide-react'
+import { YesNo } from '@/components/ui/yes-no-badge'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  ExternalLink,
+  Lock,
+  Globe,
+  Building2,
+  Users,
+  Bot,
+} from 'lucide-react'
+import { cn } from '@/lib/utils/cn'
 
 const columnHelper = createColumnHelper<RepoWithProperties>()
 
-function formatPropertyName(name: string): string {
-  return name.replace(/[-_]/g, ' ')
+const SOX_PROPERTY = 'SOX-Compliance-Scope'
+
+function Loading() {
+  return <Spinner className="h-4 w-4" />
 }
 
 export function buildColumns(
@@ -19,7 +30,10 @@ export function buildColumns(
     value: string | null,
   ) => Promise<void>,
 ) {
-  const staticColumns = [
+  const hasSox = schema.some((p) => p.property_name === SOX_PROPERTY)
+
+  return [
+    // Repository name
     columnHelper.accessor('name', {
       header: 'Repository',
       cell: (info) => (
@@ -37,11 +51,44 @@ export function buildColumns(
       ),
       enableSorting: true,
     }),
+
+    // A. SOX Compliance Scope
+    ...(hasSox
+      ? [
+          columnHelper.accessor(
+            (row) => row.custom_properties[SOX_PROPERTY] ?? null,
+            {
+              id: 'sox_scope',
+              header: 'SOX Scope',
+              cell: (info) => {
+                const value =
+                  info.row.original.custom_properties[SOX_PROPERTY]
+                return (
+                  <SoxToggle
+                    value={value === 'true'}
+                    onChange={async (newVal) => {
+                      await onPropertyUpdate(
+                        info.row.original.name,
+                        SOX_PROPERTY,
+                        newVal ? 'true' : 'false',
+                      )
+                    }}
+                  />
+                )
+              },
+              enableSorting: true,
+            },
+          ),
+        ]
+      : []),
+
+    // Visibility
     columnHelper.accessor('visibility', {
       header: 'Visibility',
       cell: (info) => {
         const v = info.getValue()
-        const Icon = v === 'private' ? Lock : v === 'internal' ? Building2 : Globe
+        const Icon =
+          v === 'private' ? Lock : v === 'internal' ? Building2 : Globe
         const colors =
           v === 'private'
             ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800'
@@ -59,72 +106,181 @@ export function buildColumns(
       },
       enableSorting: true,
     }),
-    columnHelper.accessor('language', {
-      header: 'Language',
-      cell: (info) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400">
-          {info.getValue() ?? '-'}
-        </span>
-      ),
-      enableSorting: true,
+
+    // B. GitHub Apps
+    columnHelper.display({
+      id: 'github_apps',
+      header: 'GitHub Apps',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (c.apps.length === 0) {
+          return (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              None
+            </span>
+          )
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {c.apps.map((app) => (
+              <span
+                key={app.appSlug}
+                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
+              >
+                <Bot className="h-3 w-3" />
+                {app.appSlug}
+              </span>
+            ))}
+          </div>
+        )
+      },
     }),
-    columnHelper.accessor('archived', {
-      header: 'Archived',
-      cell: (info) =>
-        info.getValue() ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 ring-inset dark:bg-red-950 dark:text-red-300 dark:ring-red-800">
-            <Archive className="h-3 w-3" />
-            Yes
+
+    // C. Bypass Actors (bots/bypass accounts)
+    columnHelper.display({
+      id: 'bypass_actors',
+      header: 'Bypass Accounts',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) {
+          return <span className="text-xs text-gray-400">N/A</span>
+        }
+        const actors = c.protection.bypassActors
+        if (actors.length === 0) {
+          return (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              None
+            </span>
+          )
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {actors.map((actor) => (
+              <span
+                key={`${actor.type}-${actor.name}`}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs ring-1 ring-inset',
+                  actor.type === 'app'
+                    ? 'bg-purple-50 text-purple-700 ring-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:ring-purple-800'
+                    : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:ring-orange-800',
+                )}
+              >
+                <Users className="h-3 w-3" />
+                {actor.name}
+              </span>
+            ))}
+          </div>
+        )
+      },
+    }),
+
+    // D. Require PR Before Merging
+    columnHelper.display({
+      id: 'require_pr',
+      header: 'Require PR',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) return <YesNo value={null} />
+        return <YesNo value={c.protection.requirePr} />
+      },
+    }),
+
+    // E. Required Approvals
+    columnHelper.display({
+      id: 'required_approvals',
+      header: 'Approvals',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection || c.protection.requiredApprovals === null) {
+          return <span className="text-xs text-gray-400">N/A</span>
+        }
+        const count = c.protection.requiredApprovals
+        return (
+          <span
+            className={cn(
+              'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+              count > 0
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800'
+                : 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-800',
+            )}
+          >
+            {count}
           </span>
-        ) : null,
-      enableSorting: true,
+        )
+      },
+    }),
+
+    // F. Dismiss Stale PR Approvals
+    columnHelper.display({
+      id: 'dismiss_stale',
+      header: 'Dismiss Stale',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) return <YesNo value={null} />
+        return <YesNo value={c.protection.dismissStaleReviews} />
+      },
+    }),
+
+    // G. Require Code Owner Reviews
+    columnHelper.display({
+      id: 'code_owner_review',
+      header: 'Code Owners',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) return <YesNo value={null} />
+        return <YesNo value={c.protection.requireCodeOwnerReviews} />
+      },
+    }),
+
+    // H. Bypass PR Allowances (same data as C but scoped to PR bypass)
+    columnHelper.display({
+      id: 'bypass_pr',
+      header: 'PR Bypass Actors',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) {
+          return <span className="text-xs text-gray-400">N/A</span>
+        }
+        const actors = c.protection.bypassActors
+        if (actors.length === 0) {
+          return (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              None
+            </span>
+          )
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {actors.map((actor) => (
+              <span
+                key={`${actor.type}-${actor.name}`}
+                className="inline-flex items-center gap-1 rounded-md bg-orange-50 px-1.5 py-0.5 text-xs text-orange-700 ring-1 ring-orange-200 ring-inset dark:bg-orange-950 dark:text-orange-300 dark:ring-orange-800"
+              >
+                {actor.name} ({actor.type})
+              </span>
+            ))}
+          </div>
+        )
+      },
+    }),
+
+    // I. Require Last Push Approval
+    columnHelper.display({
+      id: 'last_push_approval',
+      header: 'Last Push Approval',
+      cell: (info) => {
+        const c = info.row.original.compliance
+        if (!c) return <Loading />
+        if (!c.protection) return <YesNo value={null} />
+        return <YesNo value={c.protection.requireLastPushApproval} />
+      },
     }),
   ]
-
-  const propertyColumns = schema.map((prop) =>
-    columnHelper.accessor(
-      (row) => row.custom_properties[prop.property_name] ?? null,
-      {
-        id: `prop_${prop.property_name}`,
-        header: formatPropertyName(prop.property_name),
-        cell: (info) => {
-          const value = info.row.original.custom_properties[prop.property_name]
-
-          if (prop.value_type === 'true_false') {
-            return (
-              <SoxToggle
-                value={value === 'true'}
-                onChange={async (newVal) => {
-                  await onPropertyUpdate(
-                    info.row.original.name,
-                    prop.property_name,
-                    newVal ? 'true' : 'false',
-                  )
-                }}
-              />
-            )
-          }
-
-          return <PropertyBadge value={value ?? null} definition={prop} />
-        },
-        enableSorting: true,
-      },
-    ),
-  )
-
-  const updatedAtColumn = columnHelper.accessor('updated_at', {
-    header: 'Last Updated',
-    cell: (info) => {
-      const date = info.getValue()
-      if (!date) return '-'
-      return (
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {new Date(date).toLocaleDateString()}
-        </span>
-      )
-    },
-    enableSorting: true,
-  })
-
-  return [...staticColumns, ...propertyColumns, updatedAtColumn]
 }

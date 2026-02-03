@@ -43,6 +43,11 @@ export function ComplianceTable({
       data = data.filter((r) => r.visibility === visibilityFilter)
     }
 
+    // Always show only in-scope repos (sidebar handles all repos)
+    data = data.filter(
+      (r) => r.custom_properties['SOX-Compliance-Scope'] === 'true',
+    )
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       data = data.filter(

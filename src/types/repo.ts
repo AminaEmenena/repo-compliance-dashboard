@@ -15,4 +15,5 @@ export interface Repository {
 
 export interface RepoWithProperties extends Repository {
   custom_properties: Record<string, string | string[] | null>
+  compliance: import('./compliance').ComplianceData | null
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils/cn'
+import { ShieldCheck, ShieldPlus } from 'lucide-react'
 
 interface SoxToggleProps {
   value: boolean
@@ -22,22 +23,27 @@ export function SoxToggle({ value, onChange }: SoxToggleProps) {
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={value}
       disabled={isUpdating}
       onClick={handleToggle}
       className={cn(
-        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-        value ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600',
+        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors',
+        value
+          ? 'bg-emerald-50 text-emerald-700 ring-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800 dark:hover:bg-emerald-900'
+          : 'bg-gray-50 text-gray-600 ring-gray-300 hover:bg-blue-50 hover:text-blue-700 hover:ring-blue-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-blue-950 dark:hover:text-blue-300 dark:hover:ring-blue-800',
         isUpdating && 'opacity-50 cursor-wait',
       )}
     >
-      <span
-        className={cn(
-          'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-          value ? 'translate-x-4' : 'translate-x-0',
-        )}
-      />
+      {value ? (
+        <>
+          <ShieldCheck className="h-3.5 w-3.5" />
+          In Scope
+        </>
+      ) : (
+        <>
+          <ShieldPlus className="h-3.5 w-3.5" />
+          Add to Scope
+        </>
+      )}
     </button>
   )
 }

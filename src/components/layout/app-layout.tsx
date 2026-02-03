@@ -1,71 +1,140 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useMemo } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { useRepoStore } from '@/stores/repo-store'
+import { useUIStore } from '@/stores/ui-store'
+import { useSelectedRepo } from '@/hooks/use-selected-repo'
+import { useIsDesktop } from '@/hooks/use-media-query'
 import { AppHeader } from './app-header'
+import { SidebarToggle } from './sidebar-toggle'
+import { RepoSidebar } from '@/components/sidebar/repo-sidebar'
+import { RepoDetailView } from '@/components/detail/repo-detail-view'
 import { ComplianceStats } from '@/components/dashboard/compliance-stats'
 import { ComplianceToolbar } from '@/components/dashboard/compliance-toolbar'
 import { ComplianceTable } from '@/components/dashboard/compliance-table'
+import { SoxSetupBanner } from '@/components/dashboard/sox-setup-banner'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertTriangle } from 'lucide-react'
 
+const SOX_PROPERTY = 'SOX-Compliance-Scope'
+
 export function AppLayout() {
-  const { token, orgName } = useAuthStore()
-  const { repositories, propertySchema, isLoading, error, fetchAll } =
-    useRepoStore()
+  const { orgName } = useAuthStore()
+  const {
+    repositories,
+    propertySchema,
+    isLoading,
+    complianceProgress,
+    error,
+    fetchAll,
+    createSoxProperty,
+  } = useRepoStore()
+  const { sidebarOpen, setSidebarOpen } = useUIStore()
+  const selectedRepo = useSelectedRepo()
+  const isDesktop = useIsDesktop()
 
   useEffect(() => {
-    if (token && orgName) {
-      fetchAll(token, orgName)
+    if (orgName) {
+      fetchAll(orgName)
     }
-  }, [token, orgName, fetchAll])
+  }, [orgName, fetchAll])
+
+  const hasSoxProperty = useMemo(
+    () => propertySchema.some((p) => p.property_name === SOX_PROPERTY),
+    [propertySchema],
+  )
 
   const handlePropertyUpdate = useCallback(
     async (repoName: string, propertyName: string, value: string | null) => {
-      if (!token || !orgName) return
+      if (!orgName) return
       await useRepoStore
         .getState()
-        .updateProperty(token, orgName, repoName, propertyName, value)
+        .updateProperty(orgName, repoName, propertyName, value)
     },
-    [token, orgName],
+    [orgName],
   )
 
+  const handleCreateSoxProperty = useCallback(async () => {
+    if (!orgName) return
+    await createSoxProperty(orgName)
+  }, [orgName, createSoxProperty])
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       <AppHeader />
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        {isLoading && repositories.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-24">
-            <Spinner className="h-8 w-8 text-primary-500" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Loading repositories from {orgName}...
-            </p>
+      <div className="flex flex-1 min-h-0">
+        {/* Mobile sidebar overlay */}
+        {!isDesktop && sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Sidebar */}
+        {isDesktop ? (
+          <RepoSidebar />
+        ) : sidebarOpen ? (
+          <div className="fixed inset-y-0 left-0 z-50 w-72">
+            <RepoSidebar />
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-red-200 bg-red-50 p-8 dark:border-red-900 dark:bg-red-950">
-            <AlertTriangle className="h-8 w-8 text-red-500" />
-            <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              {error}
-            </p>
-            <button
-              type="button"
-              onClick={() => token && orgName && fetchAll(token, orgName)}
-              className="rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <>
-            <ComplianceStats repositories={repositories} />
-            <ComplianceToolbar />
-            <ComplianceTable
-              repositories={repositories}
-              propertySchema={propertySchema}
+        ) : null}
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+          {!isDesktop && (
+            <div className="mb-4">
+              <SidebarToggle />
+            </div>
+          )}
+
+          {isLoading && repositories.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-24">
+              <Spinner className="h-8 w-8 text-primary-500" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Loading repositories from {orgName}...
+              </p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-red-200 bg-red-50 p-8 dark:border-red-900 dark:bg-red-950">
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+              <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                {error}
+              </p>
+              <button
+                type="button"
+                onClick={() => orgName && fetchAll(orgName)}
+                className="rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800"
+              >
+                Retry
+              </button>
+            </div>
+          ) : selectedRepo ? (
+            <RepoDetailView
+              repo={selectedRepo}
               onPropertyUpdate={handlePropertyUpdate}
             />
-          </>
-        )}
-      </main>
+          ) : (
+            <div className="space-y-6">
+              {!hasSoxProperty && repositories.length > 0 && (
+                <SoxSetupBanner onCreateProperty={handleCreateSoxProperty} />
+              )}
+              <ComplianceStats repositories={repositories} />
+              {complianceProgress && (
+                <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                  <Spinner className="h-4 w-4" />
+                  {complianceProgress}
+                </div>
+              )}
+              <ComplianceToolbar />
+              <ComplianceTable
+                repositories={repositories}
+                propertySchema={propertySchema}
+                onPropertyUpdate={handlePropertyUpdate}
+              />
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   )
 }
