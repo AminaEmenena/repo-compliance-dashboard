@@ -3,6 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table'
 import type { RepoWithProperties } from '@/types/repo'
 import type { ComplianceData, RepoAppInstallation } from '@/types/compliance'
 import type { PropertyDefinition } from '@/types/property'
+import { useUIStore } from '@/stores/ui-store'
 import { SoxToggle } from './sox-toggle'
 import { YesNo } from '@/components/ui/yes-no-badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -13,8 +14,12 @@ import {
   Building2,
   Users,
   Bot,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+
+const APPS_PREVIEW_COUNT = 5
 
 function AppsCell({ apps }: { apps: RepoAppInstallation[] }) {
   const [expanded, setExpanded] = useState(false)
@@ -25,28 +30,40 @@ function AppsCell({ apps }: { apps: RepoAppInstallation[] }) {
     )
   }
 
+  const visible = expanded ? apps : apps.slice(0, APPS_PREVIEW_COUNT)
+  const hiddenCount = apps.length - APPS_PREVIEW_COUNT
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800 dark:hover:bg-blue-900"
-      >
-        <Bot className="h-3 w-3" />
-        {apps.length} app{apps.length !== 1 ? 's' : ''}
-      </button>
-      {expanded && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {apps.map((app) => (
-            <span
-              key={app.appSlug}
-              className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
-            >
-              <Bot className="h-3 w-3" />
-              {app.appSlug}
-            </span>
-          ))}
-        </div>
+      <div className="flex flex-wrap gap-1">
+        {visible.map((app) => (
+          <span
+            key={app.appSlug}
+            className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
+          >
+            <Bot className="h-3 w-3" />
+            {app.appSlug}
+          </span>
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 inline-flex items-center gap-0.5 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+        >
+          {expanded ? (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronRight className="h-3 w-3" />
+              +{hiddenCount} more
+            </>
+          )}
+        </button>
       )}
     </div>
   )
@@ -91,19 +108,31 @@ export function buildColumns(
     // Repository name
     columnHelper.accessor('name', {
       header: 'Repository',
-      cell: (info) => (
-        <div className="flex items-center gap-2">
-          <a
-            href={info.row.original.html_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
-            {info.getValue()}
-          </a>
-          <ExternalLink className="h-3 w-3 text-gray-400" />
-        </div>
-      ),
+      cell: (info) => {
+        const selectRepo = useUIStore.getState().selectRepo
+        return (
+          <div>
+            <div className="flex items-center gap-2">
+              <a
+                href={info.row.original.html_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+              >
+                {info.getValue()}
+              </a>
+              <ExternalLink className="h-3 w-3 text-gray-400" />
+            </div>
+            <button
+              type="button"
+              onClick={() => selectRepo(info.row.original.name)}
+              className="text-xs text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
+            >
+              Details
+            </button>
+          </div>
+        )
+      },
       enableSorting: true,
     }),
 
