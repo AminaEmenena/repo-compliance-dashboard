@@ -118,9 +118,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get installation token
       const instToken = await createInstallationToken(jwt, installationId)
 
-      // Validate by fetching org info with the installation token
+      // Validate by fetching org or user info with the installation token
       const octokit = getOctokit(instToken.token)
-      const { data } = await octokit.orgs.get({ org: orgName })
+      let displayName = orgName
+      try {
+        const { data } = await octokit.orgs.get({ org: orgName })
+        displayName = data.name ?? orgName
+      } catch {
+        // Not an org — try as user
+        const { data } = await octokit.users.getByUsername({ username: orgName })
+        displayName = data.name ?? orgName
+      }
 
       // Persist credentials
       localStorage.setItem(STORAGE_KEY_AUTH_MODE, 'github-app')
@@ -137,7 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         installationToken: instToken.token,
         installationTokenExpiresAt: instToken.expiresAt,
         orgName,
-        orgDisplayName: data.name ?? orgName,
+        orgDisplayName: displayName,
         isConnected: true,
         isValidating: false,
         validationError: null,
