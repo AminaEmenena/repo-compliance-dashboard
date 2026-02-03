@@ -36,6 +36,10 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_GITHUB_APP_ID: ${{ secrets.APP_ID }}
+          VITE_GITHUB_APP_PEM: ${{ secrets.APP_PEM }}
+          VITE_GITHUB_ORG: ${{ secrets.GH_ORG }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
