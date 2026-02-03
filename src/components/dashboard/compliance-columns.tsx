@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import type { RepoWithProperties } from '@/types/repo'
-import type { ComplianceData } from '@/types/compliance'
+import type { ComplianceData, RepoAppInstallation } from '@/types/compliance'
 import type { PropertyDefinition } from '@/types/property'
 import { SoxToggle } from './sox-toggle'
 import { YesNo } from '@/components/ui/yes-no-badge'
@@ -14,6 +15,42 @@ import {
   Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+
+function AppsCell({ apps }: { apps: RepoAppInstallation[] }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (apps.length === 0) {
+    return (
+      <span className="text-xs text-gray-400 dark:text-gray-500">None</span>
+    )
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800 dark:hover:bg-blue-900"
+      >
+        <Bot className="h-3 w-3" />
+        {apps.length} app{apps.length !== 1 ? 's' : ''}
+      </button>
+      {expanded && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {apps.map((app) => (
+            <span
+              key={app.appSlug}
+              className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
+            >
+              <Bot className="h-3 w-3" />
+              {app.appSlug}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const columnHelper = createColumnHelper<RepoWithProperties>()
 
@@ -125,33 +162,14 @@ export function buildColumns(
       enableSorting: true,
     }),
 
-    // B. GitHub Apps
+    // B. GitHub Apps (collapsible — shows count, click to expand)
     columnHelper.display({
       id: 'github_apps',
       header: 'GitHub Apps',
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (c.apps.length === 0) {
-          return (
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              None
-            </span>
-          )
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {c.apps.map((app) => (
-              <span
-                key={app.appSlug}
-                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 ring-1 ring-blue-200 ring-inset dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
-              >
-                <Bot className="h-3 w-3" />
-                {app.appSlug}
-              </span>
-            ))}
-          </div>
-        )
+        return <AppsCell apps={c.apps} />
       },
     }),
 
