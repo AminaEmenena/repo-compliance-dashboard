@@ -7,6 +7,45 @@ export interface InstallationToken {
 }
 
 /**
+ * Convert PKCS#1 PEM (BEGIN RSA PRIVATE KEY) to PKCS#8 PEM (BEGIN PRIVATE KEY).
+ * GitHub App private keys are generated in PKCS#1 format, but jose requires PKCS#8.
+ */
+function convertPkcs1ToPkcs8(pem: string): string {
+  if (pem.includes('BEGIN PRIVATE KEY')) {
+    return pem // Already PKCS#8
+  }
+
+  // Extract base64 content from PKCS#1 PEM
+  const b64 = pem
+    .replace(/-----BEGIN RSA PRIVATE KEY-----/, '')
+    .replace(/-----END RSA PRIVATE KEY-----/, '')
+    .replace(/\s/g, '')
+  const pkcs1Bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+
+  // ASN.1 PKCS#8 wrapper: version(0) + RSA algorithm OID + OCTET STRING of PKCS#1 key
+  const rsaOid = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00]
+  const algorithmSeq = [0x30, rsaOid.length, ...rsaOid]
+  const version = [0x02, 0x01, 0x00]
+
+  // Encode OCTET STRING length for the PKCS#1 key
+  const octetString = [0x04, ...encodeAsn1Length(pkcs1Bytes.length), ...pkcs1Bytes]
+
+  const inner = [...version, ...algorithmSeq, ...octetString]
+  const pkcs8Bytes = new Uint8Array([0x30, ...encodeAsn1Length(inner.length), ...inner])
+
+  // Convert back to PEM
+  const pkcs8B64 = btoa(String.fromCharCode(...pkcs8Bytes))
+  const lines = pkcs8B64.match(/.{1,64}/g) ?? []
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`
+}
+
+function encodeAsn1Length(length: number): number[] {
+  if (length < 0x80) return [length]
+  if (length < 0x100) return [0x81, length]
+  return [0x82, (length >> 8) & 0xff, length & 0xff]
+}
+
+/**
  * Generate a JWT for GitHub App authentication.
  * Uses RS256 with a 9-minute expiry (under the 10-minute max).
  */
@@ -14,7 +53,8 @@ export async function generateAppJwt(
   appId: string,
   privateKeyPem: string,
 ): Promise<string> {
-  const privateKey = await importPKCS8(privateKeyPem, 'RS256')
+  const pkcs8Pem = convertPkcs1ToPkcs8(privateKeyPem)
+  const privateKey = await importPKCS8(pkcs8Pem, 'RS256')
   const now = Math.floor(Date.now() / 1000)
 
   return new SignJWT({})
