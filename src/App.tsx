@@ -5,8 +5,12 @@ import { AppLayout } from '@/components/layout/app-layout'
 
 const ENV_APP_ID = import.meta.env.VITE_GITHUB_APP_ID as string | undefined
 const ENV_APP_PEM_RAW = import.meta.env.VITE_GITHUB_APP_PEM as string | undefined
-// Env vars may have literal \n instead of real newlines after Vite inlining
-const ENV_APP_PEM = ENV_APP_PEM_RAW?.replace(/\\n/g, '\n')
+// PEM is base64-encoded in env vars to survive Vite inlining
+const ENV_APP_PEM = ENV_APP_PEM_RAW
+  ? new TextDecoder().decode(
+      Uint8Array.from(atob(ENV_APP_PEM_RAW), (c) => c.charCodeAt(0)),
+    )
+  : undefined
 const ENV_ORG = import.meta.env.VITE_GITHUB_ORG as string | undefined
 
 function App() {
