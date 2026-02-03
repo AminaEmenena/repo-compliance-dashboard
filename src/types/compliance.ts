@@ -42,6 +42,7 @@ export interface BypassActor {
 export interface RepoAppInstallation {
   appSlug: string
   appId: number
+  repositorySelection: 'all' | 'selected'
 }
 
 export interface ComplianceData {

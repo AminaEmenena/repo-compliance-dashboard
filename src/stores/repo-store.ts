@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import type { RepoWithProperties } from '@/types/repo'
 import type { PropertyDefinition } from '@/types/property'
-import type { RepoAppInstallation } from '@/types/compliance'
+import type { OrgAppWithRepos } from '@/lib/github/compliance'
 import { getOctokit } from '@/lib/github/client'
 import { fetchAllRepos } from '@/lib/github/repos'
 import {
@@ -23,7 +23,7 @@ const CACHE_KEY = 'rcd_repo_cache'
 interface CachedData {
   repositories: RepoWithProperties[]
   propertySchema: PropertyDefinition[]
-  orgApps: RepoAppInstallation[]
+  orgApps: OrgAppWithRepos[]
   lastFetchedAt: string
   orgName: string
 }
@@ -60,7 +60,7 @@ async function getAuthedOctokit() {
 interface RepoState {
   repositories: RepoWithProperties[]
   propertySchema: PropertyDefinition[]
-  orgApps: RepoAppInstallation[]
+  orgApps: OrgAppWithRepos[]
   isLoading: boolean
   complianceProgress: string | null
   error: string | null
@@ -152,6 +152,18 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         },
       )
 
+      // Filter org apps per repo: 'all' apps apply to every repo,
+      // 'selected' apps only apply to repos in their selectedRepos list
+      function appsForRepo(repoName: string) {
+        return orgApps
+          .filter(
+            (app) =>
+              app.repositorySelection === 'all' ||
+              app.selectedRepos.includes(repoName),
+          )
+          .map(({ selectedRepos: _, ...rest }) => rest)
+      }
+
       // Merge compliance data into repos
       const withCompliance: RepoWithProperties[] = get().repositories.map(
         (repo) => {
@@ -165,7 +177,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
                   mergedProtection: compResult.mergedProtection,
                   rulesError: compResult.rulesError,
                   hasRulesets: compResult.hasRulesets,
-                  apps: orgApps,
+                  apps: appsForRepo(repo.name),
                 }
               : repo.archived
                 ? { protection: null, protectionError: 'Archived', mergedProtection: null, rulesError: null, hasRulesets: false, apps: [] }

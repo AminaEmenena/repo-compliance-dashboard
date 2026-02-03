@@ -230,20 +230,59 @@ export function mergeProtection(
 
 // --- Org installations ---
 
+interface OrgInstallation {
+  app_slug?: string
+  app_id?: number
+  repository_selection?: string
+  id?: number
+}
+
+export interface OrgAppWithRepos extends RepoAppInstallation {
+  /** Repo names this app has access to (only populated for 'selected' apps) */
+  selectedRepos: string[]
+}
+
 export async function fetchOrgInstallations(
   octokit: Octokit,
   org: string,
-): Promise<RepoAppInstallation[]> {
+): Promise<OrgAppWithRepos[]> {
   try {
     const { data } = await octokit.request(
       'GET /orgs/{org}/installations',
       { org, per_page: 100 },
     )
-    const installations = (data as { installations?: Array<{ app_slug?: string; app_id?: number }> }).installations ?? []
-    return installations.map((inst) => ({
-      appSlug: inst.app_slug ?? 'unknown',
-      appId: inst.app_id ?? 0,
-    }))
+    const installations = (
+      data as { installations?: OrgInstallation[] }
+    ).installations ?? []
+
+    const results: OrgAppWithRepos[] = []
+
+    for (const inst of installations) {
+      const app: OrgAppWithRepos = {
+        appSlug: inst.app_slug ?? 'unknown',
+        appId: inst.app_id ?? 0,
+        repositorySelection: inst.repository_selection === 'selected' ? 'selected' : 'all',
+        selectedRepos: [],
+      }
+
+      // For 'selected' apps, try to fetch which repos they have access to
+      if (app.repositorySelection === 'selected' && inst.id) {
+        try {
+          const reposResp = await octokit.request(
+            'GET /user/installations/{installation_id}/repositories',
+            { installation_id: inst.id, per_page: 100 },
+          )
+          const repos = (reposResp.data as { repositories?: Array<{ name?: string }> }).repositories ?? []
+          app.selectedRepos = repos.map((r) => r.name ?? '').filter(Boolean)
+        } catch {
+          // Can't fetch repo list — leave empty, app won't be shown per-repo
+        }
+      }
+
+      results.push(app)
+    }
+
+    return results
   } catch {
     return []
   }
