@@ -1,5 +1,6 @@
 import type { RepoWithProperties } from '@/types/repo'
 import { Users } from 'lucide-react'
+import { SourceBadge } from '@/components/ui/source-badge'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils/cn'
 
@@ -15,7 +16,7 @@ export function BypassSection({ repo }: { repo: RepoWithProperties }) {
     )
   }
 
-  const actors = c.protection?.bypassActors ?? []
+  const actors = c.mergedProtection?.bypassActors ?? c.protection?.bypassActors ?? []
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -47,6 +48,7 @@ export function BypassSection({ repo }: { repo: RepoWithProperties }) {
                 <Users className="h-3 w-3" />
                 {actor.name}
                 <span className="text-[10px] opacity-60">({actor.type})</span>
+                {actor.source && <SourceBadge source={actor.source} />}
               </span>
             ))}
           </div>

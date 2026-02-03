@@ -86,7 +86,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         propertySchema: schema,
         orgApps,
         isLoading: false,
-        complianceProgress: `Loading branch protection (0/${repos.length})...`,
+        complianceProgress: `Loading protection rules (0/${repos.length})...`,
         lastFetchedAt: new Date().toISOString(),
       })
 
@@ -98,7 +98,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         nonArchived,
         (completed, total) => {
           set({
-            complianceProgress: `Loading branch protection (${completed}/${total})...`,
+            complianceProgress: `Loading protection rules (${completed}/${total})...`,
           })
         },
       )
@@ -112,11 +112,14 @@ export const useRepoStore = create<RepoState>((set, get) => ({
             compliance: compResult
               ? {
                   protection: compResult.protection,
-                  protectionError: compResult.error,
+                  protectionError: compResult.protectionError,
+                  mergedProtection: compResult.mergedProtection,
+                  rulesError: compResult.rulesError,
+                  hasRulesets: compResult.hasRulesets,
                   apps: orgApps,
                 }
               : repo.archived
-                ? { protection: null, protectionError: 'Archived', apps: [] }
+                ? { protection: null, protectionError: 'Archived', mergedProtection: null, rulesError: null, hasRulesets: false, apps: [] }
                 : null,
           }
         },

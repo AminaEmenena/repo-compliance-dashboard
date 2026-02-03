@@ -2,8 +2,13 @@ import type { Octokit } from '@octokit/rest'
 import type {
   BranchProtection,
   BypassActor,
+  MergedProtection,
   RepoAppInstallation,
+  RuleSource,
+  SourcedCheck,
 } from '@/types/compliance'
+
+// --- Classic branch protection ---
 
 export async function fetchBranchProtection(
   octokit: Octokit,
@@ -61,7 +66,6 @@ export async function fetchBranchProtection(
   } catch (err: unknown) {
     const error = err as { status?: number; message?: string }
     if (error.status === 404) {
-      // No branch protection configured
       return {
         protection: {
           requirePr: false,
@@ -80,6 +84,151 @@ export async function fetchBranchProtection(
     }
   }
 }
+
+// --- Branch rules (rulesets + classic, merged by GitHub) ---
+
+interface GitHubBranchRule {
+  type: string
+  ruleset_source_type?: string
+  ruleset_source?: string
+  ruleset_id?: number
+  parameters?: Record<string, unknown>
+}
+
+export async function fetchBranchRules(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<{ rules: GitHubBranchRule[]; error: string | null }> {
+  try {
+    const { data } = await octokit.request(
+      'GET /repos/{owner}/{repo}/rules/branches/{branch}',
+      { owner, repo, branch },
+    )
+    return { rules: data as GitHubBranchRule[], error: null }
+  } catch (err: unknown) {
+    const error = err as { status?: number; message?: string }
+    if (error.status === 404) {
+      return { rules: [], error: null }
+    }
+    return {
+      rules: [],
+      error: `${error.status ?? 'unknown'}: ${error.message ?? 'Unknown error'}`,
+    }
+  }
+}
+
+// --- Merge classic protection + rules into MergedProtection ---
+
+function sourcedDefault<T>(value: T): SourcedCheck<T> {
+  return { effectiveValue: value, enforcedBy: [] }
+}
+
+function ruleSourceFromGitHub(rule: GitHubBranchRule): RuleSource {
+  const sourceType = rule.ruleset_source_type
+  return {
+    type:
+      sourceType === 'Organization'
+        ? 'org-ruleset'
+        : sourceType === 'Repository'
+          ? 'repo-ruleset'
+          : 'repo-ruleset',
+    rulesetId: rule.ruleset_id ?? null,
+    sourceName: rule.ruleset_source ?? null,
+  }
+}
+
+export function mergeProtection(
+  classic: BranchProtection | null,
+  rules: GitHubBranchRule[],
+): MergedProtection {
+  const classicSource: RuleSource = {
+    type: 'classic',
+    rulesetId: null,
+    sourceName: null,
+  }
+
+  const result: MergedProtection = {
+    requirePr: sourcedDefault(false),
+    requiredApprovals: sourcedDefault<number | null>(null),
+    dismissStaleReviews: sourcedDefault(false),
+    requireCodeOwnerReviews: sourcedDefault(false),
+    requireLastPushApproval: sourcedDefault(false),
+    bypassActors: [],
+  }
+
+  // Fold in classic protection
+  if (classic) {
+    if (classic.requirePr) {
+      result.requirePr = { effectiveValue: true, enforcedBy: [classicSource] }
+    }
+    if (classic.requiredApprovals != null && classic.requiredApprovals > 0) {
+      result.requiredApprovals = {
+        effectiveValue: classic.requiredApprovals,
+        enforcedBy: [classicSource],
+      }
+    }
+    if (classic.dismissStaleReviews) {
+      result.dismissStaleReviews = {
+        effectiveValue: true,
+        enforcedBy: [classicSource],
+      }
+    }
+    if (classic.requireCodeOwnerReviews) {
+      result.requireCodeOwnerReviews = {
+        effectiveValue: true,
+        enforcedBy: [classicSource],
+      }
+    }
+    if (classic.requireLastPushApproval) {
+      result.requireLastPushApproval = {
+        effectiveValue: true,
+        enforcedBy: [classicSource],
+      }
+    }
+    result.bypassActors.push(
+      ...classic.bypassActors.map((a) => ({ ...a, source: classicSource })),
+    )
+  }
+
+  // Fold in ruleset rules
+  const prRules = rules.filter((r) => r.type === 'pull_request')
+  for (const rule of prRules) {
+    const source = ruleSourceFromGitHub(rule)
+    const params = rule.parameters ?? {}
+
+    // pull_request rule type implies PR is required
+    result.requirePr.effectiveValue = true
+    result.requirePr.enforcedBy.push(source)
+
+    const approvals = params.required_approving_review_count as number | undefined
+    if (approvals != null && approvals > 0) {
+      const current = result.requiredApprovals.effectiveValue ?? 0
+      if (approvals > current) {
+        result.requiredApprovals.effectiveValue = approvals
+      }
+      result.requiredApprovals.enforcedBy.push(source)
+    }
+
+    if (params.dismiss_stale_reviews_on_push) {
+      result.dismissStaleReviews.effectiveValue = true
+      result.dismissStaleReviews.enforcedBy.push(source)
+    }
+    if (params.require_code_owner_review) {
+      result.requireCodeOwnerReviews.effectiveValue = true
+      result.requireCodeOwnerReviews.enforcedBy.push(source)
+    }
+    if (params.require_last_push_approval) {
+      result.requireLastPushApproval.effectiveValue = true
+      result.requireLastPushApproval.enforcedBy.push(source)
+    }
+  }
+
+  return result
+}
+
+// --- Org installations ---
 
 export async function fetchOrgInstallations(
   octokit: Octokit,
@@ -100,19 +249,23 @@ export async function fetchOrgInstallations(
   }
 }
 
-// Fetch branch protection for multiple repos with concurrency control
+// --- Batch compliance fetch ---
+
+interface ComplianceResult {
+  protection: BranchProtection | null
+  protectionError: string | null
+  mergedProtection: MergedProtection | null
+  rulesError: string | null
+  hasRulesets: boolean
+}
+
 export async function fetchAllCompliance(
   octokit: Octokit,
   org: string,
   repos: Array<{ name: string; default_branch: string }>,
   onProgress?: (completed: number, total: number) => void,
-): Promise<
-  Map<string, { protection: BranchProtection | null; error: string | null }>
-> {
-  const results = new Map<
-    string,
-    { protection: BranchProtection | null; error: string | null }
-  >()
+): Promise<Map<string, ComplianceResult>> {
+  const results = new Map<string, ComplianceResult>()
   const CONCURRENCY = 8
   let completed = 0
 
@@ -122,13 +275,25 @@ export async function fetchAllCompliance(
       const repo = queue.shift()
       if (!repo) break
 
-      const result = await fetchBranchProtection(
-        octokit,
-        org,
-        repo.name,
-        repo.default_branch,
+      // Fetch classic protection + branch rules in parallel
+      const [classicResult, rulesResult] = await Promise.all([
+        fetchBranchProtection(octokit, org, repo.name, repo.default_branch),
+        fetchBranchRules(octokit, org, repo.name, repo.default_branch),
+      ])
+
+      const merged = mergeProtection(
+        classicResult.protection,
+        rulesResult.rules,
       )
-      results.set(repo.name, result)
+
+      results.set(repo.name, {
+        protection: classicResult.protection,
+        protectionError: classicResult.error,
+        mergedProtection: merged,
+        rulesError: rulesResult.error,
+        hasRulesets: rulesResult.rules.length > 0,
+      })
+
       completed++
       onProgress?.(completed, repos.length)
     }

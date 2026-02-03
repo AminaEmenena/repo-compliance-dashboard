@@ -1,5 +1,6 @@
 import { createColumnHelper } from '@tanstack/react-table'
 import type { RepoWithProperties } from '@/types/repo'
+import type { ComplianceData } from '@/types/compliance'
 import type { PropertyDefinition } from '@/types/property'
 import { SoxToggle } from './sox-toggle'
 import { YesNo } from '@/components/ui/yes-no-badge'
@@ -20,6 +21,23 @@ const SOX_PROPERTY = 'SOX-Compliance-Scope'
 
 function Loading() {
   return <Spinner className="h-4 w-4" />
+}
+
+/** Read effective value from merged protection, falling back to classic */
+function getCheck(c: ComplianceData, key: 'requirePr' | 'dismissStaleReviews' | 'requireCodeOwnerReviews' | 'requireLastPushApproval'): boolean | null {
+  if (c.mergedProtection) return c.mergedProtection[key].effectiveValue
+  if (c.protection) return c.protection[key]
+  return null
+}
+
+function getApprovals(c: ComplianceData): number | null {
+  if (c.mergedProtection) return c.mergedProtection.requiredApprovals.effectiveValue
+  if (c.protection) return c.protection.requiredApprovals
+  return null
+}
+
+function getBypassActors(c: ComplianceData) {
+  return c.mergedProtection?.bypassActors ?? c.protection?.bypassActors ?? []
 }
 
 export function buildColumns(
@@ -137,17 +155,14 @@ export function buildColumns(
       },
     }),
 
-    // C. Bypass Actors (bots/bypass accounts)
+    // C. Bypass Actors
     columnHelper.display({
       id: 'bypass_actors',
       header: 'Bypass Accounts',
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) {
-          return <span className="text-xs text-gray-400">N/A</span>
-        }
-        const actors = c.protection.bypassActors
+        const actors = getBypassActors(c)
         if (actors.length === 0) {
           return (
             <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -183,8 +198,7 @@ export function buildColumns(
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) return <YesNo value={null} />
-        return <YesNo value={c.protection.requirePr} />
+        return <YesNo value={getCheck(c, 'requirePr')} />
       },
     }),
 
@@ -195,10 +209,10 @@ export function buildColumns(
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection || c.protection.requiredApprovals === null) {
+        const count = getApprovals(c)
+        if (count === null) {
           return <span className="text-xs text-gray-400">N/A</span>
         }
-        const count = c.protection.requiredApprovals
         return (
           <span
             className={cn(
@@ -221,8 +235,7 @@ export function buildColumns(
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) return <YesNo value={null} />
-        return <YesNo value={c.protection.dismissStaleReviews} />
+        return <YesNo value={getCheck(c, 'dismissStaleReviews')} />
       },
     }),
 
@@ -233,22 +246,18 @@ export function buildColumns(
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) return <YesNo value={null} />
-        return <YesNo value={c.protection.requireCodeOwnerReviews} />
+        return <YesNo value={getCheck(c, 'requireCodeOwnerReviews')} />
       },
     }),
 
-    // H. Bypass PR Allowances (same data as C but scoped to PR bypass)
+    // H. Bypass PR Allowances
     columnHelper.display({
       id: 'bypass_pr',
       header: 'PR Bypass Actors',
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) {
-          return <span className="text-xs text-gray-400">N/A</span>
-        }
-        const actors = c.protection.bypassActors
+        const actors = getBypassActors(c)
         if (actors.length === 0) {
           return (
             <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -278,8 +287,7 @@ export function buildColumns(
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        if (!c.protection) return <YesNo value={null} />
-        return <YesNo value={c.protection.requireLastPushApproval} />
+        return <YesNo value={getCheck(c, 'requireLastPushApproval')} />
       },
     }),
   ]
