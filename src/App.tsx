@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { SetupScreen } from '@/components/layout/setup-screen'
 import { AppLayout } from '@/components/layout/app-layout'
@@ -12,14 +12,23 @@ const ENV_ORG = import.meta.env.VITE_GITHUB_ORG as string | undefined
 function App() {
   const { isConnected, isValidating, loadFromStorage, connectWithApp } =
     useAuthStore()
+  const autoConnectAttempted = useRef(false)
 
   useEffect(() => {
     loadFromStorage()
   }, [loadFromStorage])
 
-  // Auto-connect from env vars if present and not already connected
+  // Auto-connect from env vars — only attempt once
   useEffect(() => {
-    if (!isConnected && !isValidating && ENV_APP_ID && ENV_APP_PEM && ENV_ORG) {
+    if (
+      !autoConnectAttempted.current &&
+      !isConnected &&
+      !isValidating &&
+      ENV_APP_ID &&
+      ENV_APP_PEM &&
+      ENV_ORG
+    ) {
+      autoConnectAttempted.current = true
       connectWithApp(ENV_APP_ID, ENV_APP_PEM, ENV_ORG).catch(() => {
         // Error is surfaced via validationError in the store
       })
