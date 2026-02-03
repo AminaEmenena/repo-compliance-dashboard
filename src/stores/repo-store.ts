@@ -2,25 +2,39 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import type { RepoWithProperties } from '@/types/repo'
 import type { PropertyDefinition } from '@/types/property'
+import type { RepoAppInstallation } from '@/types/compliance'
 import { getOctokit } from '@/lib/github/client'
 import { fetchAllRepos } from '@/lib/github/repos'
 import {
   fetchPropertySchema,
   fetchPropertyValues,
   updatePropertyValues,
+  createOrgProperty,
 } from '@/lib/github/properties'
+import {
+  fetchAllCompliance,
+  fetchOrgInstallations,
+} from '@/lib/github/compliance'
 import { getErrorMessage } from '@/lib/utils/errors'
+import { useAuthStore } from '@/stores/auth-store'
+
+async function getAuthedOctokit() {
+  const token = await useAuthStore.getState().getToken()
+  return getOctokit(token)
+}
 
 interface RepoState {
   repositories: RepoWithProperties[]
   propertySchema: PropertyDefinition[]
+  orgApps: RepoAppInstallation[]
   isLoading: boolean
+  complianceProgress: string | null
   error: string | null
   lastFetchedAt: string | null
 
-  fetchAll: (token: string, orgName: string) => Promise<void>
+  fetchAll: (orgName: string) => Promise<void>
+  createSoxProperty: (orgName: string) => Promise<void>
   updateProperty: (
-    token: string,
     orgName: string,
     repoName: string,
     propertyName: string,
@@ -32,19 +46,23 @@ interface RepoState {
 export const useRepoStore = create<RepoState>((set, get) => ({
   repositories: [],
   propertySchema: [],
+  orgApps: [],
   isLoading: false,
+  complianceProgress: null,
   error: null,
   lastFetchedAt: null,
 
-  fetchAll: async (token: string, orgName: string) => {
-    set({ isLoading: true, error: null })
+  fetchAll: async (orgName: string) => {
+    set({ isLoading: true, error: null, complianceProgress: null })
     try {
-      const octokit = getOctokit(token)
+      const octokit = await getAuthedOctokit()
 
-      const [repos, schema, propValues] = await Promise.all([
+      // Phase 1: fetch repos, property schema/values, and org apps in parallel
+      const [repos, schema, propValues, orgApps] = await Promise.all([
         fetchAllRepos(octokit, orgName),
         fetchPropertySchema(octokit, orgName),
         fetchPropertyValues(octokit, orgName),
+        fetchOrgInstallations(octokit, orgName),
       ])
 
       const propsMap = new Map<string, Record<string, string | string[] | null>>()
@@ -56,27 +74,82 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         propsMap.set(pv.repository_name, props)
       }
 
+      // Show repos immediately while compliance loads
       const merged: RepoWithProperties[] = repos.map((repo) => ({
         ...repo,
         custom_properties: propsMap.get(repo.name) ?? {},
+        compliance: null,
       }))
 
       set({
         repositories: merged,
         propertySchema: schema,
+        orgApps,
         isLoading: false,
+        complianceProgress: `Loading branch protection (0/${repos.length})...`,
         lastFetchedAt: new Date().toISOString(),
       })
+
+      // Phase 2: fetch branch protection per repo (concurrent, background)
+      const nonArchived = repos.filter((r) => !r.archived)
+      const complianceMap = await fetchAllCompliance(
+        octokit,
+        orgName,
+        nonArchived,
+        (completed, total) => {
+          set({
+            complianceProgress: `Loading branch protection (${completed}/${total})...`,
+          })
+        },
+      )
+
+      // Merge compliance data into repos
+      const withCompliance: RepoWithProperties[] = get().repositories.map(
+        (repo) => {
+          const compResult = complianceMap.get(repo.name)
+          return {
+            ...repo,
+            compliance: compResult
+              ? {
+                  protection: compResult.protection,
+                  protectionError: compResult.error,
+                  apps: orgApps,
+                }
+              : repo.archived
+                ? { protection: null, protectionError: 'Archived', apps: [] }
+                : null,
+          }
+        },
+      )
+
+      set({ repositories: withCompliance, complianceProgress: null })
     } catch (error) {
       set({
         isLoading: false,
+        complianceProgress: null,
         error: getErrorMessage(error),
       })
     }
   },
 
+  createSoxProperty: async (orgName: string) => {
+    try {
+      const octokit = await getAuthedOctokit()
+      await createOrgProperty(octokit, orgName, {
+        property_name: 'SOX-Compliance-Scope',
+        value_type: 'true_false',
+        required: false,
+        default_value: null,
+        description: 'Whether this repository is in scope for SOX compliance',
+      })
+      toast.success('SOX-Compliance-Scope property created on org')
+      await get().fetchAll(orgName)
+    } catch (error) {
+      toast.error(`Failed to create property: ${getErrorMessage(error)}`)
+    }
+  },
+
   updateProperty: async (
-    token: string,
     orgName: string,
     repoName: string,
     propertyName: string,
@@ -101,7 +174,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set({ repositories: updated })
 
     try {
-      const octokit = getOctokit(token)
+      const octokit = await getAuthedOctokit()
       await updatePropertyValues(octokit, orgName, {
         repository_names: [repoName],
         properties: [{ property_name: propertyName, value }],
@@ -128,7 +201,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     set({
       repositories: [],
       propertySchema: [],
+      orgApps: [],
       isLoading: false,
+      complianceProgress: null,
       error: null,
       lastFetchedAt: null,
     })

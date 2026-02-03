@@ -9,12 +9,12 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 
 export function AppHeader() {
-  const { token, orgName, orgDisplayName, disconnect } = useAuthStore()
+  const { authMode, orgName, orgDisplayName, disconnect } = useAuthStore()
   const { isLoading, lastFetchedAt, fetchAll } = useRepoStore()
 
   const handleRefresh = () => {
-    if (token && orgName) {
-      fetchAll(token, orgName)
+    if (orgName) {
+      fetchAll(orgName)
     }
   }
 
@@ -25,7 +25,7 @@ export function AppHeader() {
 
   return (
     <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 dark:bg-primary-900">
             <ShieldCheck className="h-5 w-5 text-primary-600 dark:text-primary-400" />
@@ -37,6 +37,10 @@ export function AppHeader() {
             <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <Building2 className="h-3 w-3" />
               <span>{orgDisplayName ?? orgName}</span>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <span className="text-gray-400 dark:text-gray-500">
+                via {authMode === 'github-app' ? 'GitHub App' : 'PAT'}
+              </span>
             </div>
           </div>
         </div>

@@ -17,7 +17,6 @@ export function getOctokit(token: string): Octokit {
   cachedToken = token
   return cachedClient
 }
-
 export function clearClient(): void {
   cachedClient = null
   cachedToken = null

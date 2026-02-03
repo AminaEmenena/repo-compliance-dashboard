@@ -31,9 +31,17 @@ export class RateLimitError extends ComplianceError {
 
 export class PermissionError extends ComplianceError {
   constructor(
-    message: string = 'Insufficient permissions. Ensure your PAT has admin:org scope.',
+    message: string = 'Insufficient permissions. Verify your PAT scopes or GitHub App permissions.',
   ) {
     super(message, 'PERMISSION_ERROR', 403)
+  }
+}
+
+export class TokenRefreshError extends ComplianceError {
+  constructor(
+    message: string = 'Failed to refresh installation token. Please re-authenticate.',
+  ) {
+    super(message, 'TOKEN_REFRESH_ERROR', 401)
   }
 }
 
