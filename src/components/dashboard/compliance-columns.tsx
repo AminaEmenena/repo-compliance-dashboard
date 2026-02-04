@@ -126,9 +126,10 @@ export function buildColumns(
             <button
               type="button"
               onClick={() => selectRepo(info.row.original.name)}
-              className="text-xs text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
+              className="inline-flex items-center gap-0.5 text-xs text-blue-500 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              Details
+              View details
+              <ChevronRight className="h-3 w-3" />
             </button>
           </div>
         )
