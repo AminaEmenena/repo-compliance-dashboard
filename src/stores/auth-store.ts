@@ -10,11 +10,7 @@ import {
 } from '@/lib/github/app-auth'
 import {
   fetchAppClientId,
-  requestDeviceCode,
-  pollForAccessToken,
-  fetchUserLogin,
   verifyGitHubUsername,
-  type DeviceCodeResponse,
 } from '@/lib/github/device-flow'
 import type { AuthMode } from '@/types/auth'
 import { useAuditStore } from '@/stores/audit-store'
@@ -30,14 +26,6 @@ const STORAGE_KEY_ACTOR_LOGIN = 'rcd_actor_login'
 
 // Concurrency guard for token refresh
 let refreshPromise: Promise<void> | null = null
-// Abort controller for device flow polling
-let deviceFlowAbort: AbortController | null = null
-
-export interface DeviceFlowState {
-  userCode: string
-  verificationUri: string
-  expiresAt: Date
-}
 
 interface AuthState {
   // Shared state
@@ -62,8 +50,7 @@ interface AuthState {
   installationTokenExpiresAt: Date | null
   clientId: string | null
 
-  // Device flow / user identity
-  deviceFlowState: DeviceFlowState | null
+  // User identity
   identifyingUser: boolean
   identityError: string | null
 
@@ -80,8 +67,6 @@ interface AuthState {
   refreshInstallationToken: () => Promise<void>
 
   // User identity actions
-  startDeviceFlow: () => Promise<void>
-  cancelDeviceFlow: () => void
   setManualLogin: (username: string) => Promise<void>
   clearIdentity: () => void
   needsUserIdentity: () => boolean
@@ -105,7 +90,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   installationTokenExpiresAt: null,
   clientId: null,
 
-  deviceFlowState: null,
   identifyingUser: false,
   identityError: null,
 
@@ -177,7 +161,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get installation token
       const instToken = await createInstallationToken(jwt, installationId)
 
-      // Fetch the App's client_id for device flow (non-blocking)
+      // Fetch the App's client_id (stored for potential future use)
       const clientId = await fetchAppClientId(jwt)
 
       // Try to fetch display name (org or user), but don't fail if it errors
@@ -237,10 +221,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   disconnect: () => {
-    // Cancel any pending device flow
-    deviceFlowAbort?.abort()
-    deviceFlowAbort = null
-
     localStorage.removeItem(STORAGE_KEY_AUTH_MODE)
     localStorage.removeItem(STORAGE_KEY_TOKEN)
     localStorage.removeItem(STORAGE_KEY_ORG)
@@ -265,7 +245,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       installationToken: null,
       installationTokenExpiresAt: null,
       clientId: null,
-      deviceFlowState: null,
       identifyingUser: false,
       identityError: null,
     })
@@ -291,7 +270,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           orgName,
           actorLogin: savedActorLogin,
           isConnected: true,
-          // installationToken is NOT persisted — fetched lazily via getToken()
         })
         return
       }
@@ -370,92 +348,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // --- User Identity Actions ---
-
-  startDeviceFlow: async () => {
-    const { clientId } = get()
-    if (!clientId) {
-      set({
-        identityError:
-          'No Client ID available. The GitHub App may not have OAuth enabled. Use "Enter username" instead.',
-      })
-      return
-    }
-
-    // Cancel any previous flow
-    deviceFlowAbort?.abort()
-    const abort = new AbortController()
-    deviceFlowAbort = abort
-
-    set({ identifyingUser: true, identityError: null, deviceFlowState: null })
-
-    try {
-      // Step 1: Request device code
-      const deviceCode: DeviceCodeResponse = await requestDeviceCode(clientId)
-
-      set({
-        deviceFlowState: {
-          userCode: deviceCode.user_code,
-          verificationUri: deviceCode.verification_uri,
-          expiresAt: new Date(Date.now() + deviceCode.expires_in * 1000),
-        },
-      })
-
-      // Step 2: Poll for access token
-      const accessToken = await pollForAccessToken(
-        clientId,
-        deviceCode.device_code,
-        deviceCode.interval,
-        abort.signal,
-      )
-
-      // Step 3: Fetch user login
-      const login = await fetchUserLogin(accessToken)
-
-      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, login)
-
-      set({
-        actorLogin: login,
-        deviceFlowState: null,
-        identifyingUser: false,
-        identityError: null,
-      })
-
-      // Audit the identification
-      const { orgName } = get()
-      if (orgName) {
-        useAuditStore.getState().recordAction('auth.connected', login, {
-          authMode: 'github-app-oauth',
-          orgName,
-        }).catch(() => {})
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        set({ identifyingUser: false, deviceFlowState: null })
-        return
-      }
-      set({
-        identifyingUser: false,
-        deviceFlowState: null,
-        identityError:
-          err instanceof Error ? err.message : 'Device flow failed',
-      })
-    } finally {
-      if (deviceFlowAbort === abort) {
-        deviceFlowAbort = null
-      }
-    }
-  },
-
-  cancelDeviceFlow: () => {
-    deviceFlowAbort?.abort()
-    deviceFlowAbort = null
-    set({
-      deviceFlowState: null,
-      identifyingUser: false,
-      identityError: null,
-    })
-  },
+  // --- User Identity ---
 
   setManualLogin: async (username: string) => {
     set({ identifyingUser: true, identityError: null })
@@ -502,7 +395,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { appId } = get()
     set({
       actorLogin: appId ? `github-app[${appId}]` : null,
-      deviceFlowState: null,
       identifyingUser: false,
       identityError: null,
     })
