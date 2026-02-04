@@ -13,7 +13,7 @@ import { ComplianceToolbar } from '@/components/dashboard/compliance-toolbar'
 import { ComplianceTable } from '@/components/dashboard/compliance-table'
 import { SoxSetupBanner } from '@/components/dashboard/sox-setup-banner'
 import { Spinner } from '@/components/ui/spinner'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 
 const SOX_PROPERTY = 'SOX-Compliance-Scope'
 
@@ -23,6 +23,7 @@ export function AppLayout() {
     repositories,
     propertySchema,
     isLoading,
+    isCachedData,
     complianceProgress,
     error,
     fetchAll,
@@ -118,6 +119,12 @@ export function AppLayout() {
             />
           ) : (
             <div className="space-y-6">
+              {isCachedData && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  <Info className="h-4 w-4 shrink-0" />
+                  Showing cached data. Please wait while the latest data is loaded.
+                </div>
+              )}
               {!hasSoxProperty && repositories.length > 0 && (
                 <SoxSetupBanner onCreateProperty={handleCreateSoxProperty} />
               )}

@@ -19,8 +19,10 @@ import { getErrorMessage } from '@/lib/utils/errors'
 import { useAuthStore } from '@/stores/auth-store'
 
 const CACHE_KEY = 'rcd_repo_cache'
+const CACHE_VERSION = 2 // Bump to invalidate old cache format
 
 interface CachedData {
+  version?: number
   repositories: RepoWithProperties[]
   propertySchema: PropertyDefinition[]
   orgApps: OrgAppWithRepos[]
@@ -30,7 +32,7 @@ interface CachedData {
 
 function saveCache(data: CachedData) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data))
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ...data, version: CACHE_VERSION }))
   } catch {
     // Storage full or unavailable — silently ignore
   }
@@ -42,6 +44,7 @@ function loadCache(orgName: string): CachedData | null {
     if (!raw) return null
     const data = JSON.parse(raw) as CachedData
     if (data.orgName !== orgName) return null
+    if ((data.version ?? 0) < CACHE_VERSION) return null
     return data
   } catch {
     return null
@@ -62,6 +65,7 @@ interface RepoState {
   propertySchema: PropertyDefinition[]
   orgApps: OrgAppWithRepos[]
   isLoading: boolean
+  isCachedData: boolean
   complianceProgress: string | null
   error: string | null
   lastFetchedAt: string | null
@@ -83,6 +87,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   propertySchema: [],
   orgApps: [],
   isLoading: false,
+  isCachedData: false,
   complianceProgress: null,
   error: null,
   lastFetchedAt: null,
@@ -96,6 +101,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       orgApps: cached.orgApps,
       lastFetchedAt: cached.lastFetchedAt,
       isLoading: false,
+      isCachedData: true,
       error: null,
     })
     return true
@@ -186,7 +192,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         },
       )
 
-      set({ repositories: withCompliance, complianceProgress: null })
+      set({ repositories: withCompliance, complianceProgress: null, isCachedData: false })
 
       // Cache for next load
       saveCache({
@@ -277,6 +283,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       propertySchema: [],
       orgApps: [],
       isLoading: false,
+      isCachedData: false,
       complianceProgress: null,
       error: null,
       lastFetchedAt: null,
