@@ -9,8 +9,6 @@ import {
   RefreshCw,
   Shield,
   Plus,
-  Globe,
-  Monitor,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -58,23 +56,6 @@ function ActionBadge({ action }: { action: AuditAction }) {
   )
 }
 
-function SourceBadge({ source }: { source: 'dashboard' | 'github' }) {
-  const Icon = source === 'dashboard' ? Monitor : Globe
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs ring-1 ring-inset',
-        source === 'dashboard'
-          ? 'bg-indigo-50 text-indigo-600 ring-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:ring-indigo-800'
-          : 'bg-gray-50 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700',
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {source === 'dashboard' ? 'Dashboard' : 'GitHub'}
-    </span>
-  )
-}
-
 function EntryDetails({ entry }: { entry: AuditEntry }) {
   const details = entry.details
   if (!details || Object.keys(details).length === 0) return null
@@ -88,8 +69,6 @@ function EntryDetails({ entry }: { entry: AuditEntry }) {
   if (details.authMode) items.push(`Mode: ${details.authMode}`)
   if (details.orgName) items.push(`Org: ${details.orgName}`)
   if (details.repoCount) items.push(`Repos: ${details.repoCount}`)
-  if (details.githubAction) items.push(`Action: ${details.githubAction}`)
-  if (details.repo) items.push(`Repo: ${details.repo}`)
 
   if (items.length === 0) return null
 
@@ -106,7 +85,6 @@ function EntryCard({ entry }: { entry: AuditEntry }) {
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <ActionBadge action={entry.action} />
-          <SourceBadge source={entry.source} />
           <span className="text-xs text-gray-500 dark:text-gray-400">
             by <span className="font-medium text-gray-700 dark:text-gray-300">{entry.actor}</span>
           </span>
@@ -129,25 +107,17 @@ const ACTION_OPTIONS: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'data.refreshed', label: 'Data Refreshed' },
 ]
 
-const SOURCE_OPTIONS: { value: 'all' | 'dashboard' | 'github'; label: string }[] = [
-  { value: 'all', label: 'All Sources' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'github', label: 'GitHub' },
-]
-
 export function AuditLogView() {
   const {
     entries,
     isLoading,
     error,
     actionFilter,
-    sourceFilter,
     config,
     writeEnabled,
     initConfig,
     fetchEntries,
     setActionFilter,
-    setSourceFilter,
   } = useAuditStore()
   const { orgName } = useAuthStore()
 
@@ -166,10 +136,9 @@ export function AuditLogView() {
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (actionFilter !== 'all' && e.action !== actionFilter) return false
-      if (sourceFilter !== 'all' && e.source !== sourceFilter) return false
       return true
     })
-  }, [entries, actionFilter, sourceFilter])
+  }, [entries, actionFilter])
 
   return (
     <div className="space-y-6">
@@ -189,18 +158,6 @@ export function AuditLogView() {
           className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
         >
           {ACTION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value as 'all' | 'dashboard' | 'github')}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-        >
-          {SOURCE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

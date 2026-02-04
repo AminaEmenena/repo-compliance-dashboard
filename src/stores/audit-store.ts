@@ -3,14 +3,11 @@ import type { AuditAction, AuditEntry, AuditLogConfig } from '@/types/audit'
 import {
   fetchAuditLogFile,
   appendAuditEntry,
-  fetchGitHubAuditLog,
 } from '@/lib/github/audit'
 import { getOctokit } from '@/lib/github/client'
 import { useAuthStore } from '@/stores/auth-store'
 
 const STORAGE_KEY_AUDIT_CONFIG = 'rcd_audit_config'
-
-type SourceFilter = 'all' | 'dashboard' | 'github'
 
 interface AuditState {
   entries: AuditEntry[]
@@ -22,7 +19,6 @@ interface AuditState {
 
   // Filters
   actionFilter: AuditAction | 'all'
-  sourceFilter: SourceFilter
 
   // Actions
   initConfig: (orgName: string) => void
@@ -33,7 +29,6 @@ interface AuditState {
     details: Record<string, unknown>,
   ) => Promise<void>
   setActionFilter: (filter: AuditAction | 'all') => void
-  setSourceFilter: (filter: SourceFilter) => void
   reset: () => void
 }
 
@@ -65,7 +60,6 @@ export const useAuditStore = create<AuditState>((set, get) => ({
 
   writeEnabled: true,
   actionFilter: 'all',
-  sourceFilter: 'all',
 
   initConfig: (orgName: string) => {
     const existing = get().config
@@ -88,24 +82,14 @@ export const useAuditStore = create<AuditState>((set, get) => ({
 
     try {
       const octokit = await getAuthedOctokit()
+      const fileResult = await fetchAuditLogFile(octokit, config)
 
-      // Fetch dashboard entries and GitHub audit log in parallel
-      const [fileResult, githubEntries] = await Promise.all([
-        fetchAuditLogFile(octokit, config).catch(() => ({
-          entries: [] as AuditEntry[],
-          sha: null,
-        })),
-        fetchGitHubAuditLog(octokit, config.repoOwner).catch(
-          () => [] as AuditEntry[],
-        ),
-      ])
-
-      const combined = [...fileResult.entries, ...githubEntries].sort(
+      const sorted = [...fileResult.entries].sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
       )
 
       set({
-        entries: combined,
+        entries: sorted,
         fileSha: fileResult.sha,
         isLoading: false,
       })
@@ -156,7 +140,6 @@ export const useAuditStore = create<AuditState>((set, get) => ({
   },
 
   setActionFilter: (filter) => set({ actionFilter: filter }),
-  setSourceFilter: (filter) => set({ sourceFilter: filter }),
 
   reset: () => {
     localStorage.removeItem(STORAGE_KEY_AUDIT_CONFIG)
@@ -168,7 +151,6 @@ export const useAuditStore = create<AuditState>((set, get) => ({
       config: null,
       writeEnabled: true,
       actionFilter: 'all',
-      sourceFilter: 'all',
     })
   },
 }))
