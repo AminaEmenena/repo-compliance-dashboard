@@ -8,7 +8,6 @@ import {
   Building2,
   LayoutDashboard,
   BookOpen,
-  ScrollText,
   UserCircle,
   X,
 } from 'lucide-react'
@@ -18,7 +17,6 @@ import { cn } from '@/lib/utils/cn'
 const NAV_TABS: { view: AppView; label: string; icon: typeof LayoutDashboard }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { view: 'docs', label: 'Docs', icon: BookOpen },
-  { view: 'audit-log', label: 'Audit Log', icon: ScrollText },
 ]
 
 export function AppHeader() {

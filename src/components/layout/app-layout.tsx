@@ -14,7 +14,6 @@ import { ComplianceToolbar } from '@/components/dashboard/compliance-toolbar'
 import { ComplianceTable } from '@/components/dashboard/compliance-table'
 import { SoxSetupBanner } from '@/components/dashboard/sox-setup-banner'
 import { DocsView } from '@/components/docs/docs-view'
-import { AuditLogView } from '@/components/audit/audit-log-view'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertTriangle, Info } from 'lucide-react'
 
@@ -100,8 +99,6 @@ export function AppLayout() {
 
           {currentView === 'docs' ? (
             <DocsView />
-          ) : currentView === 'audit-log' ? (
-            <AuditLogView />
           ) : isLoading && repositories.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24">
               <Spinner className="h-8 w-8 text-primary-500" />

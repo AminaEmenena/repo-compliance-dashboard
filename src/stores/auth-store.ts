@@ -13,7 +13,6 @@ import {
   verifyGitHubUsername,
 } from '@/lib/github/device-flow'
 import type { AuthMode } from '@/types/auth'
-import { useAuditStore } from '@/stores/audit-store'
 
 const STORAGE_KEY_AUTH_MODE = 'rcd_auth_mode'
 const STORAGE_KEY_TOKEN = 'rcd_token'
@@ -124,12 +123,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         validationError: null,
       })
 
-      // Fire-and-forget audit
-      useAuditStore.getState().initConfig(orgName)
-      useAuditStore.getState().recordAction('auth.connected', actorLogin, {
-        authMode: 'pat',
-        orgName,
-      }).catch(() => {})
     } catch (error) {
       clearClient()
       set({
@@ -203,12 +196,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         validationError: null,
       })
 
-      // Fire-and-forget audit
-      useAuditStore.getState().initConfig(orgName)
-      useAuditStore.getState().recordAction('auth.connected', actorLogin, {
-        authMode: 'github-app',
-        orgName,
-      }).catch(() => {})
     } catch (error) {
       clearClient()
       set({
@@ -373,14 +360,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         identityError: null,
       })
 
-      // Audit the identification
-      const { orgName } = get()
-      if (orgName) {
-        useAuditStore.getState().recordAction('auth.connected', result.login, {
-          authMode: 'github-app-manual',
-          orgName,
-        }).catch(() => {})
-      }
     } catch (err) {
       set({
         identifyingUser: false,

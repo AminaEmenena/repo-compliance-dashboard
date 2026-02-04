@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type AppView = 'dashboard' | 'docs' | 'audit-log'
+export type AppView = 'dashboard' | 'docs'
 type VisibilityFilter = 'all' | 'public' | 'private' | 'internal'
 type ScopeFilter = 'all' | 'in-scope' | 'out-of-scope'
 
