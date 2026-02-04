@@ -19,7 +19,7 @@ import { getErrorMessage } from '@/lib/utils/errors'
 import { useAuthStore } from '@/stores/auth-store'
 
 const CACHE_KEY = 'rcd_repo_cache'
-const CACHE_VERSION = 2 // Bump to invalidate old cache format
+const CACHE_VERSION = 3 // Bump to invalidate old cache format
 
 interface CachedData {
   version?: number

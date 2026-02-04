@@ -235,6 +235,7 @@ interface OrgInstallation {
   app_id?: number
   repository_selection?: string
   id?: number
+  permissions?: Record<string, string>
 }
 
 export interface OrgAppWithRepos extends RepoAppInstallation {
@@ -262,6 +263,7 @@ export async function fetchOrgInstallations(
         appSlug: inst.app_slug ?? 'unknown',
         appId: inst.app_id ?? 0,
         repositorySelection: inst.repository_selection === 'selected' ? 'selected' : 'all',
+        hasAdminAccess: inst.permissions?.administration === 'write',
         selectedRepos: [],
       }
 

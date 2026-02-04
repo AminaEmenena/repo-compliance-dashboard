@@ -192,14 +192,15 @@ export function buildColumns(
       enableSorting: true,
     }),
 
-    // B. GitHub Apps (collapsible — shows count, click to expand)
+    // B. Admin Apps (collapsible — shows count, click to expand)
     columnHelper.display({
       id: 'github_apps',
-      header: 'GitHub Apps',
+      header: 'Admin Apps',
       cell: (info) => {
         const c = info.row.original.compliance
         if (!c) return <Loading />
-        return <AppsCell apps={c.apps} />
+        const adminApps = c.apps.filter((a) => a.hasAdminAccess)
+        return <AppsCell apps={adminApps} />
       },
     }),
 

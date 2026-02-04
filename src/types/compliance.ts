@@ -43,6 +43,7 @@ export interface RepoAppInstallation {
   appSlug: string
   appId: number
   repositorySelection: 'all' | 'selected'
+  hasAdminAccess: boolean
 }
 
 export interface ComplianceData {
