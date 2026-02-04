@@ -67,8 +67,8 @@ export const useAuditStore = create<AuditState>((set, get) => ({
 
     const config: AuditLogConfig = {
       repoOwner: orgName,
-      repoName: '.github',
-      filePath: '.compliance-dashboard/audit-log.json',
+      repoName: 'repo-compliance-dashboard',
+      filePath: 'audit-log.json',
     }
     saveConfig(config)
     set({ config, writeEnabled: true })
