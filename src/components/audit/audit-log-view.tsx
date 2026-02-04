@@ -143,6 +143,7 @@ export function AuditLogView() {
     actionFilter,
     sourceFilter,
     config,
+    writeEnabled,
     initConfig,
     fetchEntries,
     setActionFilter,
@@ -210,6 +211,14 @@ export function AuditLogView() {
           {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
         </span>
       </div>
+
+      {/* Write disabled notice */}
+      {!writeEnabled && config && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          Audit log recording is unavailable. Ensure the <strong>{config.repoName}</strong> repo
+          exists in <strong>{config.repoOwner}</strong> and the token has <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900">contents:write</code> permission.
+        </div>
+      )}
 
       {/* Error state */}
       {error && (

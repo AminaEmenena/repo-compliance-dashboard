@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { toast } from 'sonner'
 import type { AuditAction, AuditEntry, AuditLogConfig } from '@/types/audit'
 import {
   fetchAuditLogFile,
@@ -19,6 +18,7 @@ interface AuditState {
   error: string | null
   fileSha: string | null
   config: AuditLogConfig | null
+  writeEnabled: boolean // false after a persistent write failure (404/403)
 
   // Filters
   actionFilter: AuditAction | 'all'
@@ -63,6 +63,7 @@ export const useAuditStore = create<AuditState>((set, get) => ({
   fileSha: null,
   config: loadConfig(),
 
+  writeEnabled: true,
   actionFilter: 'all',
   sourceFilter: 'all',
 
@@ -76,7 +77,7 @@ export const useAuditStore = create<AuditState>((set, get) => ({
       filePath: '.compliance-dashboard/audit-log.json',
     }
     saveConfig(config)
-    set({ config })
+    set({ config, writeEnabled: true })
   },
 
   fetchEntries: async () => {
@@ -121,8 +122,8 @@ export const useAuditStore = create<AuditState>((set, get) => ({
     actor: string,
     details: Record<string, unknown>,
   ) => {
-    const { config, fileSha } = get()
-    if (!config) return
+    const { config, fileSha, writeEnabled } = get()
+    if (!config || !writeEnabled) return
 
     const entry: AuditEntry = {
       id: crypto.randomUUID(),
@@ -140,8 +141,17 @@ export const useAuditStore = create<AuditState>((set, get) => ({
         entries: [entry, ...state.entries],
         fileSha: result.sha,
       }))
-    } catch {
-      toast.error('Failed to write audit log entry')
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status
+      // Disable writes on persistent errors (repo missing, no permission)
+      if (status === 404 || status === 403) {
+        set({ writeEnabled: false })
+        console.warn(
+          `Audit log writes disabled: ${status === 404 ? 'repo not found' : 'insufficient permissions'}. ` +
+          `Ensure the "${config.repoName}" repo exists in "${config.repoOwner}" and the token has contents:write permission.`,
+        )
+      }
+      // No toast — audit failures are silent to avoid spamming the user
     }
   },
 
@@ -156,6 +166,7 @@ export const useAuditStore = create<AuditState>((set, get) => ({
       error: null,
       fileSha: null,
       config: null,
+      writeEnabled: true,
       actionFilter: 'all',
       sourceFilter: 'all',
     })
