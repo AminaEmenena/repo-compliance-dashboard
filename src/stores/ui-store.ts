@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 
+export type AppView = 'dashboard' | 'docs' | 'audit-log'
 type VisibilityFilter = 'all' | 'public' | 'private' | 'internal'
 type ScopeFilter = 'all' | 'in-scope' | 'out-of-scope'
 
 interface UIState {
+  currentView: AppView
   searchQuery: string
   visibilityFilter: VisibilityFilter
   scopeFilter: ScopeFilter
@@ -13,6 +15,7 @@ interface UIState {
   sidebarOpen: boolean
   sidebarSearchQuery: string
 
+  setCurrentView: (view: AppView) => void
   setSearchQuery: (query: string) => void
   setVisibilityFilter: (filter: VisibilityFilter) => void
   setScopeFilter: (filter: ScopeFilter) => void
@@ -24,6 +27,7 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  currentView: 'dashboard',
   searchQuery: '',
   visibilityFilter: 'all',
   scopeFilter: 'all',
@@ -33,15 +37,21 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: false,
   sidebarSearchQuery: '',
 
+  setCurrentView: (view) =>
+    set((state) => ({
+      currentView: view,
+      selectedRepoName: view !== 'dashboard' ? null : state.selectedRepoName,
+    })),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setVisibilityFilter: (filter) => set({ visibilityFilter: filter }),
   setScopeFilter: (filter) => set({ scopeFilter: filter }),
   setShowArchived: (show) => set({ showArchived: show }),
-  selectRepo: (repoName) => set({ selectedRepoName: repoName, sidebarOpen: false }),
+  selectRepo: (repoName) => set({ selectedRepoName: repoName, sidebarOpen: false, currentView: 'dashboard' }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSidebarSearchQuery: (query) => set({ sidebarSearchQuery: query }),
   reset: () =>
     set({
+      currentView: 'dashboard',
       searchQuery: '',
       visibilityFilter: 'all',
       scopeFilter: 'all',

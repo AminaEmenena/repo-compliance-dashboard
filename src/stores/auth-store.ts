@@ -9,6 +9,7 @@ import {
   isTokenExpiringSoon,
 } from '@/lib/github/app-auth'
 import type { AuthMode } from '@/types/auth'
+import { useAuditStore } from '@/stores/audit-store'
 
 const STORAGE_KEY_AUTH_MODE = 'rcd_auth_mode'
 const STORAGE_KEY_TOKEN = 'rcd_token'
@@ -31,6 +32,9 @@ interface AuthState {
 
   // PAT-specific
   patToken: string | null
+
+  // Actor identity (for audit log)
+  actorLogin: string | null
 
   // GitHub App-specific
   appId: string | null
@@ -61,6 +65,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   validationError: null,
 
   patToken: null,
+  actorLogin: null,
 
   appId: null,
   privateKeyPem: null,
@@ -74,6 +79,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const octokit = getOctokit(token)
       const { data } = await octokit.orgs.get({ org: orgName })
 
+      // Get authenticated user login for audit identity
+      let actorLogin = orgName
+      try {
+        const { data: user } = await octokit.users.getAuthenticated()
+        actorLogin = user.login
+      } catch {
+        // Fallback to org name
+      }
+
       localStorage.setItem(STORAGE_KEY_AUTH_MODE, 'pat')
       localStorage.setItem(STORAGE_KEY_TOKEN, token)
       localStorage.setItem(STORAGE_KEY_ORG, orgName)
@@ -83,10 +97,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         patToken: token,
         orgName,
         orgDisplayName: data.name ?? orgName,
+        actorLogin,
         isConnected: true,
         isValidating: false,
         validationError: null,
       })
+
+      // Fire-and-forget audit
+      useAuditStore.getState().initConfig(orgName)
+      useAuditStore.getState().recordAction('auth.connected', actorLogin, {
+        authMode: 'pat',
+        orgName,
+      }).catch(() => {})
     } catch (error) {
       clearClient()
       set({
@@ -136,6 +158,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY_APP_PEM, privateKeyPem)
       localStorage.setItem(STORAGE_KEY_INSTALLATION_ID, String(installationId))
 
+      const actorLogin = `github-app[${appId}]`
+
       set({
         authMode: 'github-app',
         appId,
@@ -145,10 +169,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         installationTokenExpiresAt: instToken.expiresAt,
         orgName,
         orgDisplayName: displayName,
+        actorLogin,
         isConnected: true,
         isValidating: false,
         validationError: null,
       })
+
+      // Fire-and-forget audit
+      useAuditStore.getState().initConfig(orgName)
+      useAuditStore.getState().recordAction('auth.connected', actorLogin, {
+        authMode: 'github-app',
+        orgName,
+      }).catch(() => {})
     } catch (error) {
       clearClient()
       set({
@@ -176,6 +208,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isValidating: false,
       validationError: null,
       patToken: null,
+      actorLogin: null,
       appId: null,
       privateKeyPem: null,
       installationId: null,

@@ -12,6 +12,8 @@ import { ComplianceStats } from '@/components/dashboard/compliance-stats'
 import { ComplianceToolbar } from '@/components/dashboard/compliance-toolbar'
 import { ComplianceTable } from '@/components/dashboard/compliance-table'
 import { SoxSetupBanner } from '@/components/dashboard/sox-setup-banner'
+import { DocsView } from '@/components/docs/docs-view'
+import { AuditLogView } from '@/components/audit/audit-log-view'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertTriangle, Info } from 'lucide-react'
 
@@ -30,9 +32,10 @@ export function AppLayout() {
     loadFromCache,
     createSoxProperty,
   } = useRepoStore()
-  const { sidebarOpen, setSidebarOpen } = useUIStore()
+  const { currentView, sidebarOpen, setSidebarOpen } = useUIStore()
   const selectedRepo = useSelectedRepo()
   const isDesktop = useIsDesktop()
+  const showSidebar = currentView === 'dashboard'
 
   useEffect(() => {
     if (orgName) {
@@ -67,31 +70,37 @@ export function AppLayout() {
       <AppHeader />
       <div className="flex flex-1 min-h-0">
         {/* Mobile sidebar overlay */}
-        {!isDesktop && sidebarOpen && (
+        {showSidebar && !isDesktop && sidebarOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar */}
-        {isDesktop ? (
-          <RepoSidebar />
-        ) : sidebarOpen ? (
-          <div className="fixed inset-y-0 left-0 z-50 w-72">
+        {/* Sidebar (dashboard view only) */}
+        {showSidebar && (
+          isDesktop ? (
             <RepoSidebar />
-          </div>
-        ) : null}
+          ) : sidebarOpen ? (
+            <div className="fixed inset-y-0 left-0 z-50 w-72">
+              <RepoSidebar />
+            </div>
+          ) : null
+        )}
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-          {!isDesktop && (
+          {showSidebar && !isDesktop && (
             <div className="mb-4">
               <SidebarToggle />
             </div>
           )}
 
-          {isLoading && repositories.length === 0 ? (
+          {currentView === 'docs' ? (
+            <DocsView />
+          ) : currentView === 'audit-log' ? (
+            <AuditLogView />
+          ) : isLoading && repositories.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-24">
               <Spinner className="h-8 w-8 text-primary-500" />
               <p className="text-sm text-gray-500 dark:text-gray-400">

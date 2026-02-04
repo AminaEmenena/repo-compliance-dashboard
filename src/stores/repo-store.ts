@@ -17,6 +17,7 @@ import {
 } from '@/lib/github/compliance'
 import { getErrorMessage } from '@/lib/utils/errors'
 import { useAuthStore } from '@/stores/auth-store'
+import { useAuditStore } from '@/stores/audit-store'
 
 const CACHE_KEY = 'rcd_repo_cache'
 const CACHE_VERSION = 3 // Bump to invalidate old cache format
@@ -194,6 +195,13 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
       set({ repositories: withCompliance, complianceProgress: null, isCachedData: false })
 
+      // Audit: data refreshed
+      const actor = useAuthStore.getState().actorLogin ?? 'unknown'
+      useAuditStore.getState().recordAction('data.refreshed', actor, {
+        orgName,
+        repoCount: withCompliance.length,
+      }).catch(() => {})
+
       // Cache for next load
       saveCache({
         repositories: withCompliance,
@@ -222,6 +230,14 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         description: 'Whether this repository is in scope for SOX compliance',
       })
       toast.success('SOX-Compliance-Scope property created on org')
+
+      // Audit: property created
+      const actor = useAuthStore.getState().actorLogin ?? 'unknown'
+      useAuditStore.getState().recordAction('property.created', actor, {
+        propertyName: 'SOX-Compliance-Scope',
+        orgName,
+      }).catch(() => {})
+
       await get().fetchAll(orgName)
     } catch (error) {
       toast.error(`Failed to create property: ${getErrorMessage(error)}`)
@@ -259,6 +275,15 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         properties: [{ property_name: propertyName, value }],
       })
       toast.success(`Updated ${propertyName} for ${repoName}`)
+
+      // Audit: property updated
+      const actor = useAuthStore.getState().actorLogin ?? 'unknown'
+      useAuditStore.getState().recordAction('property.updated', actor, {
+        repoName,
+        propertyName,
+        oldValue: String(originalValue ?? ''),
+        newValue: String(value ?? ''),
+      }).catch(() => {})
     } catch (error) {
       // Rollback
       const rollback = [...get().repositories]
