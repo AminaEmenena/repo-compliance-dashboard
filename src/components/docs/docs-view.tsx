@@ -141,7 +141,8 @@ export function DocsView() {
               ['Bypass actor visibility', 'Surfaces which users, teams, and apps can bypass branch protection'],
               ['Caching', 'Stores fetched data in localStorage to avoid redundant API calls on reload'],
               ['Dual auth', 'Supports Personal Access Token (PAT) or GitHub App authentication'],
-              ['Audit log', 'Records dashboard actions and integrates with GitHub Enterprise Cloud audit log'],
+              ['Audit log', 'Records dashboard actions (auth, property changes, data refresh) to a JSON file in the org\'s .github repo'],
+              ['User identity', 'Identifies individual users via OAuth device flow or verified username when using a shared GitHub App'],
             ].map(([title, desc]) => (
               <li key={title} className="flex gap-2">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />
@@ -196,7 +197,6 @@ export function DocsView() {
               rows={[
                 ['Members', 'Read', 'Read org metadata'],
                 ['Custom properties', 'Read & Write', 'Read/write SOX compliance and other custom properties'],
-                ['Administration', 'Read', 'Read org audit log (Enterprise Cloud)'],
               ]}
             />
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -265,7 +265,6 @@ export function DocsView() {
               rows={[
                 ['`GET`', '`/repos/{owner}/{repo}/contents/{path}`', 'Read audit log file from repo', '`audit.ts`'],
                 ['`PUT`', '`/repos/{owner}/{repo}/contents/{path}`', 'Write/update audit log file', '`audit.ts`'],
-                ['`GET`', '`/orgs/{org}/audit-log`', 'Enterprise Cloud org audit events', '`audit.ts`'],
               ]}
             />
           </div>
@@ -277,6 +276,20 @@ export function DocsView() {
               rows={[
                 ['`GET`', '`/app/installations`', 'Find the installation ID for the target org', '`app-auth.ts`'],
                 ['`POST`', '`/app/installations/{id}/access_tokens`', 'Create a short-lived installation access token', '`app-auth.ts`'],
+                ['`GET`', '`/app`', 'Fetch App metadata including client_id for OAuth', '`device-flow.ts`'],
+              ]}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">User Identity (OAuth Device Flow)</h3>
+            <Table
+              headers={['Method', 'Endpoint', 'Purpose', 'File']}
+              rows={[
+                ['`POST`', '`github.com/login/device/code`', 'Request device + user verification codes', '`device-flow.ts`'],
+                ['`POST`', '`github.com/login/oauth/access_token`', 'Exchange device code for user access token', '`device-flow.ts`'],
+                ['`GET`', '`/user`', 'Fetch authenticated user login from OAuth token', '`device-flow.ts`'],
+                ['`GET`', '`/users/{username}`', 'Verify a GitHub username exists (manual fallback)', '`device-flow.ts`'],
               ]}
             />
           </div>
@@ -320,9 +333,6 @@ gh api /orgs/{org}/properties/schema
 # Custom property values
 gh api /orgs/{org}/properties/values --paginate
 
-# Org audit log (Enterprise Cloud)
-gh api /orgs/{org}/audit-log --jq '.[] | {action: .action, actor: .actor, timestamp: .["@timestamp"]}'
-
 # Read audit log file from repo
 gh api /repos/{owner}/{repo}/contents/.compliance-dashboard/audit-log.json --jq '.content' | base64 -d
 
@@ -339,22 +349,23 @@ gh api /orgs/{org} --jq '{name: .name, login: .login}'`}</CodeBlock>
 \u2502   \u251c\u2500\u2500 dashboard/       # Table view: compliance-table, columns, stats, toolbar
 \u2502   \u251c\u2500\u2500 detail/          # Detail view: per-repo compliance + apps sections
 \u2502   \u251c\u2500\u2500 docs/            # In-app documentation page
-\u2502   \u251c\u2500\u2500 layout/          # App shell, header, setup screen
+\u2502   \u251c\u2500\u2500 layout/          # App shell, header, setup screen, user identity banner
 \u2502   \u251c\u2500\u2500 sidebar/         # Repo list sidebar with search
 \u2502   \u2514\u2500\u2500 ui/              # Shared components (badges, spinner)
 \u251c\u2500\u2500 hooks/               # useMediaQuery, useSelectedRepo
 \u251c\u2500\u2500 lib/
 \u2502   \u251c\u2500\u2500 github/          # All GitHub API integration
 \u2502   \u2502   \u251c\u2500\u2500 app-auth.ts  # JWT generation, installation token management
-\u2502   \u2502   \u251c\u2500\u2500 audit.ts     # Audit log file read/write, Enterprise audit log API
+\u2502   \u2502   \u251c\u2500\u2500 audit.ts     # Audit log file read/write
 \u2502   \u2502   \u251c\u2500\u2500 client.ts    # Octokit client factory
 \u2502   \u2502   \u251c\u2500\u2500 compliance.ts# Branch protection, rulesets, org installations
+\u2502   \u2502   \u251c\u2500\u2500 device-flow.ts# OAuth device flow for user identity
 \u2502   \u2502   \u251c\u2500\u2500 properties.ts# Custom property CRUD
 \u2502   \u2502   \u2514\u2500\u2500 repos.ts     # Repository listing
 \u2502   \u2514\u2500\u2500 utils/           # Error handling, cn() helper
 \u251c\u2500\u2500 stores/              # Zustand stores
 \u2502   \u251c\u2500\u2500 audit-store.ts   # Audit log state, recording, fetching
-\u2502   \u251c\u2500\u2500 auth-store.ts    # PAT + GitHub App auth state
+\u2502   \u251c\u2500\u2500 auth-store.ts    # PAT + GitHub App auth state, user identity
 \u2502   \u251c\u2500\u2500 repo-store.ts    # Repos, compliance data, caching
 \u2502   \u2514\u2500\u2500 ui-store.ts      # View navigation, sidebar, filters
 \u2514\u2500\u2500 types/               # TypeScript interfaces

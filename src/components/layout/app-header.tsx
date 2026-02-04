@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   BookOpen,
   ScrollText,
+  UserCircle,
+  X,
 } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils/cn'
@@ -20,9 +22,10 @@ const NAV_TABS: { view: AppView; label: string; icon: typeof LayoutDashboard }[]
 ]
 
 export function AppHeader() {
-  const { authMode, orgName, orgDisplayName, disconnect } = useAuthStore()
+  const { authMode, orgName, orgDisplayName, actorLogin, clearIdentity, needsUserIdentity, disconnect } = useAuthStore()
   const { isLoading, lastFetchedAt, fetchAll } = useRepoStore()
   const { currentView, setCurrentView } = useUIStore()
+  const isIdentified = authMode === 'github-app' && !needsUserIdentity()
 
   const handleRefresh = () => {
     if (orgName) {
@@ -53,6 +56,23 @@ export function AppHeader() {
               <span className="text-gray-400 dark:text-gray-500">
                 via {authMode === 'github-app' ? 'GitHub App' : 'PAT'}
               </span>
+              {isIdentified && actorLogin && (
+                <>
+                  <span className="text-gray-300 dark:text-gray-600">|</span>
+                  <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-300">
+                    <UserCircle className="h-3 w-3" />
+                    {actorLogin}
+                    <button
+                      type="button"
+                      onClick={clearIdentity}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      title="Change identity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

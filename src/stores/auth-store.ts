@@ -8,6 +8,14 @@ import {
   validatePemFormat,
   isTokenExpiringSoon,
 } from '@/lib/github/app-auth'
+import {
+  fetchAppClientId,
+  requestDeviceCode,
+  pollForAccessToken,
+  fetchUserLogin,
+  verifyGitHubUsername,
+  type DeviceCodeResponse,
+} from '@/lib/github/device-flow'
 import type { AuthMode } from '@/types/auth'
 import { useAuditStore } from '@/stores/audit-store'
 
@@ -17,9 +25,19 @@ const STORAGE_KEY_ORG = 'rcd_org'
 const STORAGE_KEY_APP_ID = 'rcd_app_id'
 const STORAGE_KEY_APP_PEM = 'rcd_app_pem'
 const STORAGE_KEY_INSTALLATION_ID = 'rcd_installation_id'
+const STORAGE_KEY_CLIENT_ID = 'rcd_client_id'
+const STORAGE_KEY_ACTOR_LOGIN = 'rcd_actor_login'
 
 // Concurrency guard for token refresh
 let refreshPromise: Promise<void> | null = null
+// Abort controller for device flow polling
+let deviceFlowAbort: AbortController | null = null
+
+export interface DeviceFlowState {
+  userCode: string
+  verificationUri: string
+  expiresAt: Date
+}
 
 interface AuthState {
   // Shared state
@@ -42,6 +60,12 @@ interface AuthState {
   installationId: number | null
   installationToken: string | null
   installationTokenExpiresAt: Date | null
+  clientId: string | null
+
+  // Device flow / user identity
+  deviceFlowState: DeviceFlowState | null
+  identifyingUser: boolean
+  identityError: string | null
 
   // Actions
   connectWithPat: (token: string, orgName: string) => Promise<void>
@@ -54,6 +78,13 @@ interface AuthState {
   loadFromStorage: () => void
   getToken: () => Promise<string>
   refreshInstallationToken: () => Promise<void>
+
+  // User identity actions
+  startDeviceFlow: () => Promise<void>
+  cancelDeviceFlow: () => void
+  setManualLogin: (username: string) => Promise<void>
+  clearIdentity: () => void
+  needsUserIdentity: () => boolean
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -72,6 +103,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   installationId: null,
   installationToken: null,
   installationTokenExpiresAt: null,
+  clientId: null,
+
+  deviceFlowState: null,
+  identifyingUser: false,
+  identityError: null,
 
   connectWithPat: async (token: string, orgName: string) => {
     set({ isValidating: true, validationError: null })
@@ -91,6 +127,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY_AUTH_MODE, 'pat')
       localStorage.setItem(STORAGE_KEY_TOKEN, token)
       localStorage.setItem(STORAGE_KEY_ORG, orgName)
+      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, actorLogin)
 
       set({
         authMode: 'pat',
@@ -140,8 +177,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get installation token
       const instToken = await createInstallationToken(jwt, installationId)
 
+      // Fetch the App's client_id for device flow (non-blocking)
+      const clientId = await fetchAppClientId(jwt)
+
       // Try to fetch display name (org or user), but don't fail if it errors
-      getOctokit(instToken.token)
       let displayName = orgName
       try {
         const octokit = getOctokit(instToken.token)
@@ -157,7 +196,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY_APP_ID, appId)
       localStorage.setItem(STORAGE_KEY_APP_PEM, privateKeyPem)
       localStorage.setItem(STORAGE_KEY_INSTALLATION_ID, String(installationId))
+      if (clientId) {
+        localStorage.setItem(STORAGE_KEY_CLIENT_ID, clientId)
+      }
 
+      // Actor defaults to app identifier until user identifies
       const actorLogin = `github-app[${appId}]`
 
       set({
@@ -167,6 +210,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         installationId,
         installationToken: instToken.token,
         installationTokenExpiresAt: instToken.expiresAt,
+        clientId,
         orgName,
         orgDisplayName: displayName,
         actorLogin,
@@ -193,12 +237,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   disconnect: () => {
+    // Cancel any pending device flow
+    deviceFlowAbort?.abort()
+    deviceFlowAbort = null
+
     localStorage.removeItem(STORAGE_KEY_AUTH_MODE)
     localStorage.removeItem(STORAGE_KEY_TOKEN)
     localStorage.removeItem(STORAGE_KEY_ORG)
     localStorage.removeItem(STORAGE_KEY_APP_ID)
     localStorage.removeItem(STORAGE_KEY_APP_PEM)
     localStorage.removeItem(STORAGE_KEY_INSTALLATION_ID)
+    localStorage.removeItem(STORAGE_KEY_CLIENT_ID)
+    localStorage.removeItem(STORAGE_KEY_ACTOR_LOGIN)
     clearClient()
     set({
       authMode: null,
@@ -214,24 +264,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       installationId: null,
       installationToken: null,
       installationTokenExpiresAt: null,
+      clientId: null,
+      deviceFlowState: null,
+      identifyingUser: false,
+      identityError: null,
     })
   },
 
   loadFromStorage: () => {
     const authMode = localStorage.getItem(STORAGE_KEY_AUTH_MODE) as AuthMode | null
     const orgName = localStorage.getItem(STORAGE_KEY_ORG)
+    const savedActorLogin = localStorage.getItem(STORAGE_KEY_ACTOR_LOGIN)
 
     if (authMode === 'github-app') {
       const appId = localStorage.getItem(STORAGE_KEY_APP_ID)
       const pem = localStorage.getItem(STORAGE_KEY_APP_PEM)
       const instId = localStorage.getItem(STORAGE_KEY_INSTALLATION_ID)
+      const clientId = localStorage.getItem(STORAGE_KEY_CLIENT_ID)
       if (appId && pem && orgName && instId) {
         set({
           authMode: 'github-app',
           appId,
           privateKeyPem: pem,
           installationId: Number(instId),
+          clientId,
           orgName,
+          actorLogin: savedActorLogin,
           isConnected: true,
           // installationToken is NOT persisted — fetched lazily via getToken()
         })
@@ -246,6 +304,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authMode: 'pat',
         patToken: token,
         orgName,
+        actorLogin: savedActorLogin,
         isConnected: true,
       })
     }
@@ -309,5 +368,149 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         `Token refresh failed: ${getErrorMessage(error)}. Please re-authenticate.`,
       )
     }
+  },
+
+  // --- User Identity Actions ---
+
+  startDeviceFlow: async () => {
+    const { clientId } = get()
+    if (!clientId) {
+      set({
+        identityError:
+          'No Client ID available. The GitHub App may not have OAuth enabled. Use "Enter username" instead.',
+      })
+      return
+    }
+
+    // Cancel any previous flow
+    deviceFlowAbort?.abort()
+    const abort = new AbortController()
+    deviceFlowAbort = abort
+
+    set({ identifyingUser: true, identityError: null, deviceFlowState: null })
+
+    try {
+      // Step 1: Request device code
+      const deviceCode: DeviceCodeResponse = await requestDeviceCode(clientId)
+
+      set({
+        deviceFlowState: {
+          userCode: deviceCode.user_code,
+          verificationUri: deviceCode.verification_uri,
+          expiresAt: new Date(Date.now() + deviceCode.expires_in * 1000),
+        },
+      })
+
+      // Step 2: Poll for access token
+      const accessToken = await pollForAccessToken(
+        clientId,
+        deviceCode.device_code,
+        deviceCode.interval,
+        abort.signal,
+      )
+
+      // Step 3: Fetch user login
+      const login = await fetchUserLogin(accessToken)
+
+      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, login)
+
+      set({
+        actorLogin: login,
+        deviceFlowState: null,
+        identifyingUser: false,
+        identityError: null,
+      })
+
+      // Audit the identification
+      const { orgName } = get()
+      if (orgName) {
+        useAuditStore.getState().recordAction('auth.connected', login, {
+          authMode: 'github-app-oauth',
+          orgName,
+        }).catch(() => {})
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        set({ identifyingUser: false, deviceFlowState: null })
+        return
+      }
+      set({
+        identifyingUser: false,
+        deviceFlowState: null,
+        identityError:
+          err instanceof Error ? err.message : 'Device flow failed',
+      })
+    } finally {
+      if (deviceFlowAbort === abort) {
+        deviceFlowAbort = null
+      }
+    }
+  },
+
+  cancelDeviceFlow: () => {
+    deviceFlowAbort?.abort()
+    deviceFlowAbort = null
+    set({
+      deviceFlowState: null,
+      identifyingUser: false,
+      identityError: null,
+    })
+  },
+
+  setManualLogin: async (username: string) => {
+    set({ identifyingUser: true, identityError: null })
+
+    try {
+      const token = await get().getToken()
+      const result = await verifyGitHubUsername(token, username)
+
+      if (!result.valid) {
+        set({
+          identifyingUser: false,
+          identityError: `GitHub user "${username}" not found. Please check the username.`,
+        })
+        return
+      }
+
+      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, result.login)
+
+      set({
+        actorLogin: result.login,
+        identifyingUser: false,
+        identityError: null,
+      })
+
+      // Audit the identification
+      const { orgName } = get()
+      if (orgName) {
+        useAuditStore.getState().recordAction('auth.connected', result.login, {
+          authMode: 'github-app-manual',
+          orgName,
+        }).catch(() => {})
+      }
+    } catch (err) {
+      set({
+        identifyingUser: false,
+        identityError:
+          err instanceof Error ? err.message : 'Failed to verify username',
+      })
+    }
+  },
+
+  clearIdentity: () => {
+    localStorage.removeItem(STORAGE_KEY_ACTOR_LOGIN)
+    const { appId } = get()
+    set({
+      actorLogin: appId ? `github-app[${appId}]` : null,
+      deviceFlowState: null,
+      identifyingUser: false,
+      identityError: null,
+    })
+  },
+
+  needsUserIdentity: () => {
+    const { authMode, actorLogin } = get()
+    if (authMode !== 'github-app') return false
+    return !actorLogin || actorLogin.startsWith('github-app[')
   },
 }))
