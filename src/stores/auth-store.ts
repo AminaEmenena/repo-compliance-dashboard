@@ -8,10 +8,6 @@ import {
   validatePemFormat,
   isTokenExpiringSoon,
 } from '@/lib/github/app-auth'
-import {
-  fetchAppClientId,
-  verifyGitHubUsername,
-} from '@/lib/github/device-flow'
 import type { AuthMode } from '@/types/auth'
 
 const STORAGE_KEY_AUTH_MODE = 'rcd_auth_mode'
@@ -20,8 +16,6 @@ const STORAGE_KEY_ORG = 'rcd_org'
 const STORAGE_KEY_APP_ID = 'rcd_app_id'
 const STORAGE_KEY_APP_PEM = 'rcd_app_pem'
 const STORAGE_KEY_INSTALLATION_ID = 'rcd_installation_id'
-const STORAGE_KEY_CLIENT_ID = 'rcd_client_id'
-const STORAGE_KEY_ACTOR_LOGIN = 'rcd_actor_login'
 
 // Concurrency guard for token refresh
 let refreshPromise: Promise<void> | null = null
@@ -38,20 +32,12 @@ interface AuthState {
   // PAT-specific
   patToken: string | null
 
-  // Actor identity (for audit log)
-  actorLogin: string | null
-
   // GitHub App-specific
   appId: string | null
   privateKeyPem: string | null
   installationId: number | null
   installationToken: string | null
   installationTokenExpiresAt: Date | null
-  clientId: string | null
-
-  // User identity
-  identifyingUser: boolean
-  identityError: string | null
 
   // Actions
   connectWithPat: (token: string, orgName: string) => Promise<void>
@@ -64,11 +50,6 @@ interface AuthState {
   loadFromStorage: () => void
   getToken: () => Promise<string>
   refreshInstallationToken: () => Promise<void>
-
-  // User identity actions
-  setManualLogin: (username: string) => Promise<void>
-  clearIdentity: () => void
-  needsUserIdentity: () => boolean
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -80,17 +61,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   validationError: null,
 
   patToken: null,
-  actorLogin: null,
 
   appId: null,
   privateKeyPem: null,
   installationId: null,
   installationToken: null,
   installationTokenExpiresAt: null,
-  clientId: null,
-
-  identifyingUser: false,
-  identityError: null,
 
   connectWithPat: async (token: string, orgName: string) => {
     set({ isValidating: true, validationError: null })
@@ -98,31 +74,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const octokit = getOctokit(token)
       const { data } = await octokit.orgs.get({ org: orgName })
 
-      // Get authenticated user login for audit identity
-      let actorLogin = orgName
-      try {
-        const { data: user } = await octokit.users.getAuthenticated()
-        actorLogin = user.login
-      } catch {
-        // Fallback to org name
-      }
-
       localStorage.setItem(STORAGE_KEY_AUTH_MODE, 'pat')
       localStorage.setItem(STORAGE_KEY_TOKEN, token)
       localStorage.setItem(STORAGE_KEY_ORG, orgName)
-      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, actorLogin)
 
       set({
         authMode: 'pat',
         patToken: token,
         orgName,
         orgDisplayName: data.name ?? orgName,
-        actorLogin,
         isConnected: true,
         isValidating: false,
         validationError: null,
       })
-
     } catch (error) {
       clearClient()
       set({
@@ -154,9 +118,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Get installation token
       const instToken = await createInstallationToken(jwt, installationId)
 
-      // Fetch the App's client_id (stored for potential future use)
-      const clientId = await fetchAppClientId(jwt)
-
       // Try to fetch display name (org or user), but don't fail if it errors
       let displayName = orgName
       try {
@@ -173,12 +134,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY_APP_ID, appId)
       localStorage.setItem(STORAGE_KEY_APP_PEM, privateKeyPem)
       localStorage.setItem(STORAGE_KEY_INSTALLATION_ID, String(installationId))
-      if (clientId) {
-        localStorage.setItem(STORAGE_KEY_CLIENT_ID, clientId)
-      }
-
-      // Actor defaults to app identifier until user identifies
-      const actorLogin = `github-app[${appId}]`
 
       set({
         authMode: 'github-app',
@@ -187,15 +142,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         installationId,
         installationToken: instToken.token,
         installationTokenExpiresAt: instToken.expiresAt,
-        clientId,
         orgName,
         orgDisplayName: displayName,
-        actorLogin,
         isConnected: true,
         isValidating: false,
         validationError: null,
       })
-
     } catch (error) {
       clearClient()
       set({
@@ -214,8 +166,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem(STORAGE_KEY_APP_ID)
     localStorage.removeItem(STORAGE_KEY_APP_PEM)
     localStorage.removeItem(STORAGE_KEY_INSTALLATION_ID)
-    localStorage.removeItem(STORAGE_KEY_CLIENT_ID)
-    localStorage.removeItem(STORAGE_KEY_ACTOR_LOGIN)
     clearClient()
     set({
       authMode: null,
@@ -225,37 +175,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isValidating: false,
       validationError: null,
       patToken: null,
-      actorLogin: null,
       appId: null,
       privateKeyPem: null,
       installationId: null,
       installationToken: null,
       installationTokenExpiresAt: null,
-      clientId: null,
-      identifyingUser: false,
-      identityError: null,
     })
   },
 
   loadFromStorage: () => {
     const authMode = localStorage.getItem(STORAGE_KEY_AUTH_MODE) as AuthMode | null
     const orgName = localStorage.getItem(STORAGE_KEY_ORG)
-    const savedActorLogin = localStorage.getItem(STORAGE_KEY_ACTOR_LOGIN)
 
     if (authMode === 'github-app') {
       const appId = localStorage.getItem(STORAGE_KEY_APP_ID)
       const pem = localStorage.getItem(STORAGE_KEY_APP_PEM)
       const instId = localStorage.getItem(STORAGE_KEY_INSTALLATION_ID)
-      const clientId = localStorage.getItem(STORAGE_KEY_CLIENT_ID)
       if (appId && pem && orgName && instId) {
         set({
           authMode: 'github-app',
           appId,
           privateKeyPem: pem,
           installationId: Number(instId),
-          clientId,
           orgName,
-          actorLogin: savedActorLogin,
           isConnected: true,
         })
         return
@@ -269,7 +211,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authMode: 'pat',
         patToken: token,
         orgName,
-        actorLogin: savedActorLogin,
         isConnected: true,
       })
     }
@@ -333,55 +274,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         `Token refresh failed: ${getErrorMessage(error)}. Please re-authenticate.`,
       )
     }
-  },
-
-  // --- User Identity ---
-
-  setManualLogin: async (username: string) => {
-    set({ identifyingUser: true, identityError: null })
-
-    try {
-      const token = await get().getToken()
-      const result = await verifyGitHubUsername(token, username)
-
-      if (!result.valid) {
-        set({
-          identifyingUser: false,
-          identityError: `GitHub user "${username}" not found. Please check the username.`,
-        })
-        return
-      }
-
-      localStorage.setItem(STORAGE_KEY_ACTOR_LOGIN, result.login)
-
-      set({
-        actorLogin: result.login,
-        identifyingUser: false,
-        identityError: null,
-      })
-
-    } catch (err) {
-      set({
-        identifyingUser: false,
-        identityError:
-          err instanceof Error ? err.message : 'Failed to verify username',
-      })
-    }
-  },
-
-  clearIdentity: () => {
-    localStorage.removeItem(STORAGE_KEY_ACTOR_LOGIN)
-    const { appId } = get()
-    set({
-      actorLogin: appId ? `github-app[${appId}]` : null,
-      identifyingUser: false,
-      identityError: null,
-    })
-  },
-
-  needsUserIdentity: () => {
-    const { authMode, actorLogin } = get()
-    if (authMode !== 'github-app') return false
-    return !actorLogin || actorLogin.startsWith('github-app[')
   },
 }))

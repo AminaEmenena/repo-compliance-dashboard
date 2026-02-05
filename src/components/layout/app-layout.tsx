@@ -5,7 +5,6 @@ import { useUIStore } from '@/stores/ui-store'
 import { useSelectedRepo } from '@/hooks/use-selected-repo'
 import { useIsDesktop } from '@/hooks/use-media-query'
 import { AppHeader } from './app-header'
-import { UserIdentityBanner } from './user-identity-banner'
 import { SidebarToggle } from './sidebar-toggle'
 import { RepoSidebar } from '@/components/sidebar/repo-sidebar'
 import { RepoDetailView } from '@/components/detail/repo-detail-view'
@@ -68,7 +67,6 @@ export function AppLayout() {
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       <AppHeader />
-      <UserIdentityBanner />
       <div className="flex flex-1 min-h-0">
         {/* Mobile sidebar overlay */}
         {showSidebar && !isDesktop && sidebarOpen && (
