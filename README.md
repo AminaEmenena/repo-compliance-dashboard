@@ -12,8 +12,6 @@ A web dashboard for auditing GitHub repository compliance across an organization
 - **Bypass actor visibility** — surfaces which users, teams, and apps can bypass branch protection
 - **Caching** — stores fetched data in localStorage to avoid redundant API calls on reload
 - **Dual auth** — supports Personal Access Token (PAT) or GitHub App authentication
-- **Audit log** — records dashboard actions (auth, property changes, data refresh) to a JSON file in the org's `.github` repo
-- **User identity** — when using a shared GitHub App, identifies individual users via OAuth device flow or verified username entry
 - **In-app docs** — built-in documentation page with API reference and `gh` CLI equivalents
 
 ## Tech Stack
@@ -45,8 +43,8 @@ Create a [fine-grained PAT](https://github.com/settings/tokens?type=beta) or cla
 
 | Scope | Purpose |
 |-------|---------|
-| `repo` | Read branch protection, rulesets, repo metadata, read/write audit log file |
-| `admin:org` | Read org installations, custom properties, create/update properties, read audit log |
+| `repo` | Read branch protection, rulesets, repo metadata |
+| `admin:org` | Read org installations, custom properties, create/update properties |
 | `read:org` | Read org metadata (display name) |
 
 ### GitHub App
@@ -58,7 +56,6 @@ Register a [GitHub App](https://github.com/settings/apps) with these permissions
 | Permission | Access | Purpose |
 |------------|--------|---------|
 | Administration | Read | Read branch protection rules and rulesets |
-| Contents | Read & Write | Read/write audit log file to repo |
 | Metadata | Read | List repositories |
 
 **Organization permissions:**
@@ -67,10 +64,6 @@ Register a [GitHub App](https://github.com/settings/apps) with these permissions
 |------------|--------|---------|
 | Members | Read | Read org metadata |
 | Custom properties | Read & Write | Read/write SOX compliance and other custom properties |
-
-**User identity (optional):**
-
-To identify individual users when multiple people share the same GitHub App, enable **Device flow** in the app's settings (under "Optional features"). This allows users to sign in via `github.com/login/device` and have their GitHub username recorded in audit entries. If device flow is not enabled, users can manually enter their GitHub username as a fallback.
 
 The app authenticates by generating a JWT (RS256, 9-minute expiry) from the App ID and private key, then exchanging it for a short-lived installation access token (~1 hour).
 
@@ -115,32 +108,12 @@ These use raw `fetch()` (not Octokit) with JWT bearer auth:
 |--------|----------|---------|------|
 | `GET` | `/app/installations` | Find the installation ID for the target org | `src/lib/github/app-auth.ts` |
 | `POST` | `/app/installations/{installation_id}/access_tokens` | Create a short-lived installation access token | `src/lib/github/app-auth.ts` |
-| `GET` | `/app` | Fetch App metadata including `client_id` for OAuth device flow | `src/lib/github/device-flow.ts` |
 
-### User Identity (OAuth Device Flow)
-
-Used when the dashboard is connected via a shared GitHub App to identify individual users:
-
-| Method | Endpoint | Purpose | File |
-|--------|----------|---------|------|
-| `POST` | `https://github.com/login/device/code` | Request device + user verification codes | `src/lib/github/device-flow.ts` |
-| `POST` | `https://github.com/login/oauth/access_token` | Exchange device code for user access token | `src/lib/github/device-flow.ts` |
-| `GET` | `/user` | Fetch authenticated user login from OAuth token | `src/lib/github/device-flow.ts` |
-| `GET` | `/users/{username}` | Verify a GitHub username exists (manual fallback) | `src/lib/github/device-flow.ts` |
-
-### Audit Log
-
-| Method | Endpoint | Purpose | File |
-|--------|----------|---------|------|
-| `GET` | `/repos/{owner}/{repo}/contents/{path}` | Read audit log file from repo | `src/lib/github/audit.ts` |
-| `PUT` | `/repos/{owner}/{repo}/contents/{path}` | Write/update audit log file (with SHA-based concurrency) | `src/lib/github/audit.ts` |
-
-### Organization & User
+### Organization
 
 | Method | Endpoint | Purpose | File |
 |--------|----------|---------|------|
 | `GET` | `/orgs/{org}` | Validate auth token and fetch org display name | `src/stores/auth-store.ts` |
-| `GET` | `/user` | Get authenticated user login for audit actor identity | `src/stores/auth-store.ts` |
 
 ### Equivalent `gh` CLI Commands
 
@@ -168,12 +141,6 @@ gh api /orgs/{org}/properties/schema
 # Custom property values
 gh api /orgs/{org}/properties/values --paginate
 
-# Org audit log (Enterprise Cloud)
-gh api /orgs/{org}/audit-log --jq '.[] | {action: .action, actor: .actor, timestamp: .["@timestamp"]}'
-
-# Read audit log file from repo
-gh api /repos/{owner}/{repo}/contents/.compliance-dashboard/audit-log.json --jq '.content' | base64 -d
-
 # Org info
 gh api /orgs/{org} --jq '{name: .name, login: .login}'
 ```
@@ -183,31 +150,26 @@ gh api /orgs/{org} --jq '{name: .name, login: .login}'
 ```
 src/
 ├── components/
-│   ├── audit/            # Audit log view
 │   ├── dashboard/        # Table view: compliance-table, columns, stats, toolbar
 │   ├── detail/           # Detail view: per-repo compliance + apps sections
 │   ├── docs/             # In-app documentation page
-│   ├── layout/           # App shell, header, setup screen, user identity banner
+│   ├── layout/           # App shell, header, setup screen
 │   ├── sidebar/          # Repo list sidebar with search
 │   └── ui/               # Shared components (badges, spinner)
 ├── hooks/                # useMediaQuery, useSelectedRepo
 ├── lib/
 │   ├── github/           # All GitHub API integration
 │   │   ├── app-auth.ts   # JWT generation, installation token management
-│   │   ├── audit.ts      # Audit log file read/write
 │   │   ├── client.ts     # Octokit client factory
 │   │   ├── compliance.ts # Branch protection, rulesets, org installations
-│   │   ├── device-flow.ts # OAuth device flow for user identity
 │   │   ├── properties.ts # Custom property CRUD
 │   │   └── repos.ts      # Repository listing
 │   └── utils/            # Error handling, cn() helper
 ├── stores/               # Zustand stores
-│   ├── audit-store.ts    # Audit log state, recording, fetching
-│   ├── auth-store.ts     # PAT + GitHub App auth state, user identity
+│   ├── auth-store.ts     # PAT + GitHub App auth state
 │   ├── repo-store.ts     # Repos, compliance data, caching
 │   └── ui-store.ts       # View navigation, sidebar, filters
 └── types/                # TypeScript interfaces
-    ├── audit.ts
     ├── auth.ts
     ├── compliance.ts
     ├── property.ts
