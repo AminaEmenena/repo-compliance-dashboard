@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { BookOpen, Key, Server, Terminal, FolderTree, Zap } from 'lucide-react'
+import { BookOpen, Key, Server, Terminal, FolderTree, Zap, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const SECTIONS = [
   { id: 'overview', label: 'Overview', icon: BookOpen },
   { id: 'features', label: 'Features', icon: Zap },
+  { id: 'compliance-guide', label: 'Compliance Guide', icon: ShieldCheck },
   { id: 'authentication', label: 'Authentication', icon: Key },
   { id: 'api-reference', label: 'API Reference', icon: Server },
   { id: 'gh-cli', label: 'gh CLI Commands', icon: Terminal },
@@ -150,6 +151,206 @@ export function DocsView() {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* Compliance Guide */}
+        <section id="compliance-guide" className="space-y-6">
+          <SectionHeading id="compliance-guide-heading">Compliance Guide</SectionHeading>
+          <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+            This guide explains each branch protection rule the dashboard monitors, why it matters for
+            SOX compliance, and how to enable it. GitHub enforces branch protection through three sources:
+          </p>
+          <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+              <span><strong className="text-gray-900 dark:text-gray-100">Classic branch protection</strong> &mdash; Legacy rules configured per-repository in Settings &rarr; Branches</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+              <span><strong className="text-gray-900 dark:text-gray-100">Repository rulesets</strong> &mdash; Modern rules defined at the repository level</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500" />
+              <span><strong className="text-gray-900 dark:text-gray-100">Organization rulesets</strong> &mdash; Org-wide rules that apply across multiple repositories</span>
+            </li>
+          </ul>
+
+          {/* Require PR */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">1. Require Pull Request</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>What it does:</strong> Prevents direct commits to protected branches. All changes must go through a pull request.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Why it matters:</strong> Pull requests create an audit trail of who proposed changes, who reviewed them, and when they were merged. This separation of duties is a core SOX control for change management.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>How to enable:</strong> Repository Settings &rarr; Branches &rarr; Add branch protection rule &rarr; Check "Require a pull request before merging"
+            </p>
+          </div>
+
+          {/* Required Approvals */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">2. Required Approvals</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>What it does:</strong> Specifies the minimum number of reviewers who must approve a PR before it can be merged (e.g., 1, 2, or more).
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Why it matters:</strong> Requiring at least one approval ensures no single person can push code to production without peer review. For SOX-critical systems, two or more approvals may be required to enforce stronger segregation of duties.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>How to enable:</strong> Repository Settings &rarr; Branches &rarr; Branch protection rule &rarr; Under "Require a pull request before merging", set "Required approving reviews" to your desired count.
+            </p>
+          </div>
+
+          {/* Dismiss Stale Reviews */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">3. Dismiss Stale Reviews</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>What it does:</strong> Automatically invalidates existing approvals when new commits are pushed to the PR branch.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Why it matters:</strong> Without this, a developer could get approval and then push additional unreviewed changes before merging. This control ensures reviewers have approved the actual code being merged, not an earlier version.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>How to enable:</strong> Repository Settings &rarr; Branches &rarr; Branch protection rule &rarr; Check "Dismiss stale pull request approvals when new commits are pushed"
+            </p>
+          </div>
+
+          {/* Code Owner Reviews */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">4. Require Code Owner Reviews</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>What it does:</strong> Requires approval from designated code owners (defined in a CODEOWNERS file) for changes to files they own.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Why it matters:</strong> Code owners are typically subject matter experts for critical areas of the codebase. This ensures changes to sensitive code (e.g., authentication, financial calculations, infrastructure) are reviewed by qualified individuals.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>How to enable:</strong> Repository Settings &rarr; Branches &rarr; Branch protection rule &rarr; Check "Require review from Code Owners". You must also create a CODEOWNERS file (see template below).
+            </p>
+          </div>
+
+          {/* Last Push Approval */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">5. Require Last Push Approval</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>What it does:</strong> Requires that someone other than the person who pushed the last commit approves the PR.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>Why it matters:</strong> Prevents a developer from approving their own final changes. Even if you have approval requirements, without this control someone could approve a PR, then push a small "fix" and merge immediately. This ensures true separation between author and approver.
+            </p>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <strong>How to enable:</strong> Repository Settings &rarr; Branches &rarr; Branch protection rule &rarr; Check "Require approval of the most recent reviewable push"
+            </p>
+          </div>
+
+          {/* Repository Templates */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Repository-Level Templates</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Use these templates to configure branch protection via API or CLI for individual repositories.
+            </p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Classic branch protection (gh CLI):</p>
+            <CodeBlock>{`gh api repos/{owner}/{repo}/branches/{branch}/protection \\
+  --method PUT \\
+  -f required_pull_request_reviews[required_approving_review_count]=2 \\
+  -f required_pull_request_reviews[dismiss_stale_reviews]=true \\
+  -f required_pull_request_reviews[require_code_owner_reviews]=true \\
+  -f required_pull_request_reviews[require_last_push_approval]=true \\
+  -f enforce_admins=true`}</CodeBlock>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Repository ruleset (JSON for API):</p>
+            <CodeBlock>{`{
+  "name": "SOX Compliance Ruleset",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 2,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": true
+      }
+    }
+  ]
+}`}</CodeBlock>
+          </div>
+
+          {/* Organization Templates */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Organization-Level Templates</h3>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                <strong>Note:</strong> Only organization owners can create or modify org-wide rulesets. Contact your GitHub organization admin to apply these.
+              </p>
+            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Organization rulesets apply protection rules across multiple repositories at once, reducing configuration overhead and ensuring consistent controls.
+            </p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Organization ruleset (JSON for API):</p>
+            <CodeBlock>{`{
+  "name": "Org-Wide SOX Compliance",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
+    },
+    "repository_name": {
+      "include": ["~ALL"],
+      "exclude": ["test-*", "sandbox-*", "prototype-*"]
+    }
+  },
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 2,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": true
+      }
+    }
+  ]
+}`}</CodeBlock>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Create org ruleset via gh CLI:</p>
+            <CodeBlock>{`gh api orgs/{org}/rulesets \\
+  --method POST \\
+  --input ruleset.json`}</CodeBlock>
+          </div>
+
+          {/* CODEOWNERS Template */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">CODEOWNERS File Template</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Place this file at <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">.github/CODEOWNERS</code> or <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">CODEOWNERS</code> in your repository root.
+            </p>
+            <CodeBlock>{`# Default owners for everything in the repo
+* @your-org/default-reviewers
+
+# Security-sensitive areas require security team approval
+/src/auth/          @your-org/security-team
+/src/crypto/        @your-org/security-team
+/.github/workflows/ @your-org/security-team @your-org/platform-team
+
+# Infrastructure changes require platform team
+/infrastructure/    @your-org/platform-team
+/terraform/         @your-org/platform-team
+*.tf                @your-org/platform-team
+
+# Financial calculations require finance engineering approval
+/src/billing/       @your-org/finance-engineering
+/src/reporting/     @your-org/finance-engineering`}</CodeBlock>
+          </div>
         </section>
 
         {/* Authentication */}

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { useUIStore } from '@/stores/ui-store'
 import type { AuthMode } from '@/types/auth'
-import { ShieldCheck, Key, Building2, AlertTriangle, Bot } from 'lucide-react'
+import { ShieldCheck, Key, Building2, AlertTriangle, Bot, BookOpen } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils/cn'
 
@@ -9,6 +10,7 @@ export function SetupScreen() {
   const [authMode, setAuthMode] = useState<AuthMode>('github-app')
   const { isValidating, validationError, connectWithPat, connectWithApp } =
     useAuthStore()
+  const { setCurrentView } = useUIStore()
 
   // PAT fields
   const [token, setToken] = useState('')
@@ -244,6 +246,15 @@ export function SetupScreen() {
             )}
           </form>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setCurrentView('docs')}
+          className="flex w-full items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          <BookOpen className="h-4 w-4" />
+          View Documentation
+        </button>
       </div>
     </div>
   )

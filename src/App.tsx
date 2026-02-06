@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { useUIStore } from '@/stores/ui-store'
 import { SetupScreen } from '@/components/layout/setup-screen'
 import { AppLayout } from '@/components/layout/app-layout'
+import { DocsView } from '@/components/docs/docs-view'
 
 const ENV_APP_ID = import.meta.env.VITE_GITHUB_APP_ID as string | undefined
 const ENV_APP_PEM_RAW = import.meta.env.VITE_GITHUB_APP_PEM as string | undefined
@@ -16,6 +18,7 @@ const ENV_ORG = import.meta.env.VITE_GITHUB_ORG as string | undefined
 function App() {
   const { isConnected, isValidating, loadFromStorage, connectWithApp } =
     useAuthStore()
+  const { currentView, setCurrentView } = useUIStore()
   const autoConnectAttempted = useRef(false)
 
   useEffect(() => {
@@ -43,6 +46,31 @@ function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <p className="text-sm text-gray-500">Connecting...</p>
+      </div>
+    )
+  }
+
+  // Allow viewing docs without authentication
+  if (!isConnected && currentView === 'docs') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Documentation
+            </h1>
+            <button
+              type="button"
+              onClick={() => setCurrentView('dashboard')}
+              className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
+            >
+              Back to Setup
+            </button>
+          </div>
+        </div>
+        <div className="p-6">
+          <DocsView />
+        </div>
       </div>
     )
   }
