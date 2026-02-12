@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BookOpen, Key, Server, Terminal, FolderTree, Zap, ShieldCheck } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { BookOpen, Key, Server, Terminal, FolderTree, Zap, ShieldCheck, Link } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const SECTIONS = [
@@ -15,11 +15,41 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]['id']
 
+function copyAnchorLink(id: string) {
+  const url = `${window.location.origin}${window.location.pathname}#${id}`
+  navigator.clipboard.writeText(url)
+  window.history.replaceState(null, '', `#${id}`)
+}
+
 function SectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} className="text-lg font-semibold text-gray-900 dark:text-gray-100 scroll-mt-4">
+    <h2 id={id} className="group flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100 scroll-mt-4">
       {children}
+      <button
+        type="button"
+        onClick={() => copyAnchorLink(id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        title="Copy link to section"
+      >
+        <Link className="h-4 w-4" />
+      </button>
     </h2>
+  )
+}
+
+function SubsectionHeading({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <h3 id={id} className="group flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100 scroll-mt-4">
+      {children}
+      <button
+        type="button"
+        onClick={() => copyAnchorLink(id)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        title="Copy link to section"
+      >
+        <Link className="h-3.5 w-3.5" />
+      </button>
+    </h3>
   )
 }
 
@@ -69,8 +99,28 @@ function CodeBlock({ children }: { children: string }) {
 export function DocsView() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview')
 
+  // Handle initial hash navigation on mount
+  useEffect(() => {
+    const hash = window.location.hash.slice(1)
+    if (hash) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        const element = document.getElementById(hash)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' })
+          // Update active section if it's a main section
+          const mainSection = SECTIONS.find(s => s.id === hash)
+          if (mainSection) {
+            setActiveSection(mainSection.id)
+          }
+        }
+      }, 100)
+    }
+  }, [])
+
   const handleNavClick = (id: SectionId) => {
     setActiveSection(id)
+    window.history.replaceState(null, '', `#${id}`)
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
 
@@ -177,8 +227,8 @@ export function DocsView() {
           </ul>
 
           {/* Require PR */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">1. Require Pull Request</h3>
+          <div id="require-pr" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="require-pr-heading">1. Require Pull Request</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>What it does:</strong> Prevents direct commits to protected branches. All changes must go through a pull request.
             </p>
@@ -191,8 +241,8 @@ export function DocsView() {
           </div>
 
           {/* Required Approvals */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">2. Required Approvals</h3>
+          <div id="required-approvals" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="required-approvals-heading">2. Required Approvals</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>What it does:</strong> Specifies the minimum number of reviewers who must approve a PR before it can be merged (e.g., 1, 2, or more).
             </p>
@@ -205,8 +255,8 @@ export function DocsView() {
           </div>
 
           {/* Dismiss Stale Reviews */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">3. Dismiss Stale Reviews</h3>
+          <div id="dismiss-stale-reviews" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="dismiss-stale-reviews-heading">3. Dismiss Stale Reviews</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>What it does:</strong> Automatically invalidates existing approvals when new commits are pushed to the PR branch.
             </p>
@@ -219,8 +269,8 @@ export function DocsView() {
           </div>
 
           {/* Code Owner Reviews */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">4. Require Code Owner Reviews</h3>
+          <div id="code-owner-reviews" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="code-owner-reviews-heading">4. Require Code Owner Reviews</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>What it does:</strong> Requires approval from designated code owners (defined in a CODEOWNERS file) for changes to files they own.
             </p>
@@ -233,8 +283,8 @@ export function DocsView() {
           </div>
 
           {/* Last Push Approval */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">5. Require Last Push Approval</h3>
+          <div id="last-push-approval" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="last-push-approval-heading">5. Require Last Push Approval</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <strong>What it does:</strong> Requires that someone other than the person who pushed the last commit approves the PR.
             </p>
@@ -247,8 +297,8 @@ export function DocsView() {
           </div>
 
           {/* Repository Templates */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Repository-Level Templates</h3>
+          <div id="repo-templates" className="space-y-3">
+            <SubsectionHeading id="repo-templates-heading">Repository-Level Templates</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Use these templates to configure branch protection via API or CLI for individual repositories.
             </p>
@@ -286,8 +336,8 @@ export function DocsView() {
           </div>
 
           {/* Organization Templates */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Organization-Level Templates</h3>
+          <div id="org-templates" className="space-y-3">
+            <SubsectionHeading id="org-templates-heading">Organization-Level Templates</SubsectionHeading>
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 <strong>Note:</strong> Only organization owners can create or modify org-wide rulesets. Contact your GitHub organization admin to apply these.
@@ -330,8 +380,8 @@ export function DocsView() {
           </div>
 
           {/* CODEOWNERS Template */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">CODEOWNERS File Template</h3>
+          <div id="codeowners" className="space-y-3">
+            <SubsectionHeading id="codeowners-heading">CODEOWNERS File Template</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Place this file at <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">.github/CODEOWNERS</code> or <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs dark:bg-gray-800">CODEOWNERS</code> in your repository root.
             </p>
@@ -363,8 +413,8 @@ export function DocsView() {
           </p>
 
           {/* SOX */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">SOX (Sarbanes-Oxley Act)</h3>
+          <div id="sox" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="sox-heading">SOX (Sarbanes-Oxley Act)</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Section 404 requires internal controls over financial reporting. For software systems that impact financial data,
               these controls demonstrate change management and segregation of duties.
@@ -383,8 +433,8 @@ export function DocsView() {
           </div>
 
           {/* ISO 27001 */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ISO 27001</h3>
+          <div id="iso-27001" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="iso-27001-heading">ISO 27001</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               International standard for information security management systems (ISMS). Annex A controls relevant to source code management.
             </p>
@@ -402,8 +452,8 @@ export function DocsView() {
           </div>
 
           {/* SOC 2 */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">SOC 2</h3>
+          <div id="soc-2" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="soc-2-heading">SOC 2</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Trust Service Criteria for service organizations. These controls map primarily to the Security and Processing Integrity principles.
             </p>
@@ -421,8 +471,8 @@ export function DocsView() {
           </div>
 
           {/* PCI DSS */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">PCI DSS 4.0</h3>
+          <div id="pci-dss" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="pci-dss-heading">PCI DSS 4.0</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Payment Card Industry Data Security Standard for organizations handling cardholder data. Version 4.0 requirements.
             </p>
@@ -440,8 +490,8 @@ export function DocsView() {
           </div>
 
           {/* HIPAA */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">HIPAA Security Rule</h3>
+          <div id="hipaa" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="hipaa-heading">HIPAA Security Rule</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Health Insurance Portability and Accountability Act requirements for protecting electronic protected health information (ePHI).
             </p>
@@ -459,8 +509,8 @@ export function DocsView() {
           </div>
 
           {/* NIST 800-53 */}
-          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">NIST 800-53 Rev 5</h3>
+          <div id="nist-800-53" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <SubsectionHeading id="nist-800-53-heading">NIST 800-53 Rev 5</SubsectionHeading>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Security and privacy controls for federal information systems. Also used as baseline for FedRAMP.
             </p>
@@ -478,8 +528,8 @@ export function DocsView() {
           </div>
 
           {/* Quick Reference */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick Reference Matrix</h3>
+          <div id="quick-reference" className="space-y-3">
+            <SubsectionHeading id="quick-reference-heading">Quick Reference Matrix</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Summary of which controls satisfy which frameworks. Use this to prioritize controls based on your compliance requirements.
             </p>
@@ -531,10 +581,8 @@ export function DocsView() {
         <section id="authentication" className="space-y-6">
           <SectionHeading id="auth-heading">Authentication</SectionHeading>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              Personal Access Token (PAT)
-            </h3>
+          <div id="pat-auth" className="space-y-3">
+            <SubsectionHeading id="pat-auth-heading">Personal Access Token (PAT)</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Create a fine-grained or classic token with the following scopes:
             </p>
@@ -548,10 +596,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              GitHub App
-            </h3>
+          <div id="github-app-auth" className="space-y-3">
+            <SubsectionHeading id="github-app-auth-heading">GitHub App</SubsectionHeading>
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Register a GitHub App with these permissions:
             </p>
@@ -585,8 +631,8 @@ export function DocsView() {
             Every GitHub API endpoint the dashboard calls, grouped by domain.
           </p>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Repositories</h3>
+          <div id="api-repos" className="space-y-3">
+            <SubsectionHeading id="api-repos-heading">Repositories</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
@@ -595,8 +641,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Branch Protection</h3>
+          <div id="api-branch-protection" className="space-y-3">
+            <SubsectionHeading id="api-branch-protection-heading">Branch Protection</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
@@ -606,8 +652,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">GitHub App Installations</h3>
+          <div id="api-app-installations" className="space-y-3">
+            <SubsectionHeading id="api-app-installations-heading">GitHub App Installations</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
@@ -617,8 +663,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Custom Properties</h3>
+          <div id="api-custom-properties" className="space-y-3">
+            <SubsectionHeading id="api-custom-properties-heading">Custom Properties</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
@@ -630,8 +676,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">GitHub App Authentication</h3>
+          <div id="api-app-auth" className="space-y-3">
+            <SubsectionHeading id="api-app-auth-heading">GitHub App Authentication</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
@@ -641,8 +687,8 @@ export function DocsView() {
             />
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Organization</h3>
+          <div id="api-org" className="space-y-3">
+            <SubsectionHeading id="api-org-heading">Organization</SubsectionHeading>
             <Table
               headers={['Method', 'Endpoint', 'Purpose', 'File']}
               rows={[
