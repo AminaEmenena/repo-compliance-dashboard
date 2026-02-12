@@ -6,6 +6,7 @@ const SECTIONS = [
   { id: 'overview', label: 'Overview', icon: BookOpen },
   { id: 'features', label: 'Features', icon: Zap },
   { id: 'compliance-guide', label: 'Compliance Guide', icon: ShieldCheck },
+  { id: 'framework-controls', label: 'Framework Controls', icon: ShieldCheck },
   { id: 'authentication', label: 'Authentication', icon: Key },
   { id: 'api-reference', label: 'API Reference', icon: Server },
   { id: 'gh-cli', label: 'gh CLI Commands', icon: Terminal },
@@ -350,6 +351,179 @@ export function DocsView() {
 # Financial calculations require finance engineering approval
 /src/billing/       @your-org/finance-engineering
 /src/reporting/     @your-org/finance-engineering`}</CodeBlock>
+          </div>
+        </section>
+
+        {/* Framework Controls */}
+        <section id="framework-controls" className="space-y-6">
+          <SectionHeading id="framework-controls-heading">Compliance Framework Controls</SectionHeading>
+          <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+            This reference maps the branch protection controls monitored by the dashboard to specific requirements
+            in common compliance frameworks. Use this to understand which controls satisfy which regulatory requirements.
+          </p>
+
+          {/* SOX */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">SOX (Sarbanes-Oxley Act)</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Section 404 requires internal controls over financial reporting. For software systems that impact financial data,
+              these controls demonstrate change management and segregation of duties.
+            </p>
+            <Table
+              headers={['Control', 'SOX Requirement', 'How It Helps']}
+              rows={[
+                ['Require PR', 'ITGC Change Management', 'Creates audit trail for all code changes'],
+                ['Required Approvals', 'Segregation of Duties', 'Ensures independent review before deployment'],
+                ['Dismiss Stale Reviews', 'Change Management', 'Guarantees approved code matches deployed code'],
+                ['Code Owner Reviews', 'Access Control', 'Ensures qualified reviewers approve sensitive changes'],
+                ['Last Push Approval', 'Segregation of Duties', 'Prevents self-approval of final changes'],
+                ['Bypass Actor Visibility', 'Privileged Access', 'Documents who can override controls'],
+              ]}
+            />
+          </div>
+
+          {/* ISO 27001 */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ISO 27001</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              International standard for information security management systems (ISMS). Annex A controls relevant to source code management.
+            </p>
+            <Table
+              headers={['Control', 'ISO 27001 Control', 'Reference']}
+              rows={[
+                ['Require PR', 'A.12.1.2 Change Management', 'Controlled changes to production systems'],
+                ['Required Approvals', 'A.9.2.3 Management of Privileged Access', 'Authorization required for system changes'],
+                ['Dismiss Stale Reviews', 'A.14.2.2 System Change Control', 'Ensures review of actual deployed changes'],
+                ['Code Owner Reviews', 'A.9.2.5 Review of User Access Rights', 'Appropriate reviewers for sensitive areas'],
+                ['Last Push Approval', 'A.6.1.2 Segregation of Duties', 'Separation between development and approval'],
+                ['Bypass Actor Visibility', 'A.9.2.3 Privileged Access Management', 'Documentation of override capabilities'],
+              ]}
+            />
+          </div>
+
+          {/* SOC 2 */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">SOC 2</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Trust Service Criteria for service organizations. These controls map primarily to the Security and Processing Integrity principles.
+            </p>
+            <Table
+              headers={['Control', 'Trust Service Criteria', 'Principle']}
+              rows={[
+                ['Require PR', 'CC8.1 Change Management', 'Security'],
+                ['Required Approvals', 'CC6.1 Logical Access', 'Security'],
+                ['Dismiss Stale Reviews', 'CC8.1 Authorization of Changes', 'Security'],
+                ['Code Owner Reviews', 'CC6.2 Access Authentication', 'Security'],
+                ['Last Push Approval', 'CC5.2 Segregation of Duties', 'Security'],
+                ['Bypass Actor Visibility', 'CC6.1 Access Control', 'Security'],
+              ]}
+            />
+          </div>
+
+          {/* PCI DSS */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">PCI DSS 4.0</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Payment Card Industry Data Security Standard for organizations handling cardholder data. Version 4.0 requirements.
+            </p>
+            <Table
+              headers={['Control', 'PCI DSS Requirement', 'Section']}
+              rows={[
+                ['Require PR', '6.5.1 Change Control Processes', 'Req 6: Secure Software'],
+                ['Required Approvals', '6.5.2 Approval by Authorized Personnel', 'Req 6: Secure Software'],
+                ['Dismiss Stale Reviews', '6.5.1 Documentation of Impact', 'Req 6: Secure Software'],
+                ['Code Owner Reviews', '6.5.2 Code Review', 'Req 6: Secure Software'],
+                ['Last Push Approval', '6.5.2 Separation of Duties', 'Req 6: Secure Software'],
+                ['Bypass Actor Visibility', '7.2.2 Privileged Access', 'Req 7: Restrict Access'],
+              ]}
+            />
+          </div>
+
+          {/* HIPAA */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">HIPAA Security Rule</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Health Insurance Portability and Accountability Act requirements for protecting electronic protected health information (ePHI).
+            </p>
+            <Table
+              headers={['Control', 'HIPAA Safeguard', 'CFR Reference']}
+              rows={[
+                ['Require PR', 'Technical: Audit Controls', '§164.312(b)'],
+                ['Required Approvals', 'Administrative: Authorization', '§164.308(a)(4)'],
+                ['Dismiss Stale Reviews', 'Technical: Integrity Controls', '§164.312(c)(1)'],
+                ['Code Owner Reviews', 'Administrative: Access Management', '§164.308(a)(3)'],
+                ['Last Push Approval', 'Administrative: Workforce Security', '§164.308(a)(3)'],
+                ['Bypass Actor Visibility', 'Administrative: Information Access', '§164.308(a)(4)'],
+              ]}
+            />
+          </div>
+
+          {/* NIST 800-53 */}
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">NIST 800-53 Rev 5</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Security and privacy controls for federal information systems. Also used as baseline for FedRAMP.
+            </p>
+            <Table
+              headers={['Control', 'NIST Control', 'Control Family']}
+              rows={[
+                ['Require PR', 'CM-3 Configuration Change Control', 'Configuration Management'],
+                ['Required Approvals', 'CM-3(2) Testing and Approval', 'Configuration Management'],
+                ['Dismiss Stale Reviews', 'CM-3(4) Security Representative', 'Configuration Management'],
+                ['Code Owner Reviews', 'AC-5 Separation of Duties', 'Access Control'],
+                ['Last Push Approval', 'AC-5 Separation of Duties', 'Access Control'],
+                ['Bypass Actor Visibility', 'AC-6 Least Privilege', 'Access Control'],
+              ]}
+            />
+          </div>
+
+          {/* Quick Reference */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick Reference Matrix</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              Summary of which controls satisfy which frameworks. Use this to prioritize controls based on your compliance requirements.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-800">
+                    <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Control</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">SOX</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">ISO 27001</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">SOC 2</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">PCI DSS</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">HIPAA</th>
+                    <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-400">NIST</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Require PR', true, true, true, true, true, true],
+                    ['Required Approvals (≥1)', true, true, true, true, true, true],
+                    ['Required Approvals (≥2)', true, false, false, true, false, true],
+                    ['Dismiss Stale Reviews', true, true, true, true, true, true],
+                    ['Code Owner Reviews', true, true, true, true, true, true],
+                    ['Last Push Approval', true, true, true, true, true, true],
+                  ].map(([control, ...checks]) => (
+                    <tr key={control as string} className="border-t border-gray-200 dark:border-gray-800">
+                      <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{control}</td>
+                      {(checks as boolean[]).map((checked, i) => (
+                        <td key={i} className="px-3 py-2 text-center">
+                          {checked ? (
+                            <span className="text-green-600 dark:text-green-400">✓</span>
+                          ) : (
+                            <span className="text-gray-300 dark:text-gray-600">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              ✓ = Required or strongly recommended for this framework. — = Not specifically required but may still be beneficial.
+            </p>
           </div>
         </section>
 
